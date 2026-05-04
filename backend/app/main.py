@@ -1,7 +1,13 @@
-# backend/app/main.py
+"""
+Fábrica de la aplicación FastAPI — Canvas LMS Automation API.
+
+Capa: Presentación
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.presentation.routers import health
+
+from app.presentation.routers import health, deploy
 
 app = FastAPI(
     title="Canvas LMS Automation API",
@@ -19,4 +25,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(health.router, prefix="/api/v1", tags=["Health"])
+app.include_router(health.router,  prefix="/api/v1", tags=["Health"])
+app.include_router(deploy.router,  prefix="/api/v1", tags=["Deploy"])

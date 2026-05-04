@@ -1,0 +1,39 @@
+Folder PATH listing for volume OS
+Volume serial number is 268F-4CE1
+C:.
+|   App.css
+|   App.tsx
+|   estructura.txt
+|   index.css
+|   main.tsx
+|   
++---assets
+|       hero.png
+|       react.svg
+|       vite.svg
+|       
++---components
+|   \---ui
+|           badge.tsx
+|           button.tsx
+|           card.tsx
+|           input.tsx
+|           label.tsx
+|           progress.tsx
+|           
++---features
+|   \---deploy
+|       |   DeployPage.tsx
+|       |   types.ts
+|       |   
+|       \---components
+|               DropZone.tsx
+|               MetadataForm.tsx
+|               TemplateSelector.tsx
+|               
++---lib
+|       utils.ts
+|       
+\---services
+        api.ts
+        
