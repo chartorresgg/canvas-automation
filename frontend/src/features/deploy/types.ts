@@ -25,86 +25,87 @@ export interface PlantillaOption {
  * visible en la URL: poli.instructure.com/courses/{ID}
  */
 export const PLANTILLAS_DISPONIBLES: PlantillaOption[] = [
-  // ── Diseño: Unidades / Pregrado ──────────────────────────────────────
+  // ── Unidades / Posgrado ──────────────────────────────────
   {
-    id: 63449,   // ← REEMPLAZAR con ID real Canvas
-    nombre: "Unidades — Pregrado — Teórico",
+    id: 69243,
+    nombre: "Teórico — Posgrado / Unidades",
+    disenoInstruccional: "Unidades",
+    nivelFormacion: "Posgrado",
+    tipologia: "Teórico",
+  },
+  {
+    id: 69239,
+    nombre: "Teórico-Práctico — Posgrado / Unidades",
+    disenoInstruccional: "Unidades",
+    nivelFormacion: "Posgrado",
+    tipologia: "Teórico-Práctico",
+  },
+  // ── Unidades / Pregrado ──────────────────────────────────
+  {
+    id: 63449,
+    nombre: "Teórico — Pregrado / Unidades",
     disenoInstruccional: "Unidades",
     nivelFormacion: "Pregrado",
     tipologia: "Teórico",
   },
   {
-    id: 69238,   // ← REEMPLAZAR con ID real Canvas
-    nombre: "Unidades — Pregrado — Práctica",
+    id: 63801,
+    nombre: "Teórico-Práctico — Pregrado / Unidades",
     disenoInstruccional: "Unidades",
+    nivelFormacion: "Pregrado",
+    tipologia: "Teórico-Práctico",
+  },
+  // ── Unidades / Transversal ───────────────────────────────
+  {
+    id: 69238,
+    nombre: "Práctica 16 semanas / Unidades",
+    disenoInstruccional: "Unidades",
+    nivelFormacion: "Transversal",
+    tipologia: "Práctica (16 semanas)",
+  },
+  {
+    id: 63888,
+    nombre: "Práctica 8 semanas / Unidades",
+    disenoInstruccional: "Unidades",
+    nivelFormacion: "Transversal",
+    tipologia: "Práctica (8 semanas)",
+  },
+  // ── Nuevo sistema / Pregrado ─────────────────────────────
+  {
+    id: 96005,
+    nombre: "Teórico — Pregrado / Nuevo sistema",
+    disenoInstruccional: "Nuevo sistema",
+    nivelFormacion: "Pregrado",
+    tipologia: "Teórico",
+  },
+  {
+    id: 96005,
+    nombre: "Teórico-Práctico — Pregrado / Nuevo sistema",
+    disenoInstruccional: "Nuevo sistema",
+    nivelFormacion: "Pregrado",
+    tipologia: "Teórico-Práctico",
+  },
+  {
+    id: 96006,
+    nombre: "Práctica — Pregrado / Nuevo sistema",
+    disenoInstruccional: "Nuevo sistema",
     nivelFormacion: "Pregrado",
     tipologia: "Práctica",
   },
+  // ── Nuevo sistema / Posgrado ─────────────────────────────
   {
-    id: 63801,   // ← REEMPLAZAR con ID real Canvas
-    nombre: "Unidades — Pregrado — Teórico-Práctico",
-    disenoInstruccional: "Unidades",
-    nivelFormacion: "Pregrado",
-    tipologia: "Teórico-Práctico",
-  },
-  // ── Diseño: Unidades / Posgrado ──────────────────────────────────────
-  {
-    id: 69243,   // ← REEMPLAZAR con ID real Canvas
-    nombre: "Unidades — Posgrado — Teórico",
-    disenoInstruccional: "Unidades",
+    id: 96007,
+    nombre: "Fundamentación — Posgrado / Nuevo sistema",
+    disenoInstruccional: "Nuevo sistema",
     nivelFormacion: "Posgrado",
-    tipologia: "Teórico",
+    tipologia: "Fundamentación",
   },
   {
-    id: 69239,   // ← REEMPLAZAR con ID real Canvas
-    nombre: "Unidades — Posgrado — Teórico-Práctico",
-    disenoInstruccional: "Unidades",
+    id: 96008,
+    nombre: "Profundización — Posgrado / Nuevo sistema",
+    disenoInstruccional: "Nuevo sistema",
     nivelFormacion: "Posgrado",
-    tipologia: "Teórico-Práctico",
-  },
-  // ── Diseño: Escenarios / Pregrado ────────────────────────────────────
-  {
-    id: 99007,   // ← REEMPLAZAR con ID real Canvas
-    nombre: "Escenarios — Pregrado — Teórico",
-    disenoInstruccional: "Escenarios",
-    nivelFormacion: "Pregrado",
-    tipologia: "Teórico",
-  },
-  {
-    id: 99008,   // ← REEMPLAZAR con ID real Canvas
-    nombre: "Escenarios — Pregrado — Práctica",
-    disenoInstruccional: "Escenarios",
-    nivelFormacion: "Pregrado",
-    tipologia: "Práctica",
-  },
-  {
-    id: 99009,   // ← REEMPLAZAR con ID real Canvas
-    nombre: "Escenarios — Pregrado — Teórico-Práctico",
-    disenoInstruccional: "Escenarios",
-    nivelFormacion: "Pregrado",
-    tipologia: "Teórico-Práctico",
-  },
-  // ── Diseño: Escenarios / Posgrado ────────────────────────────────────
-  {
-    id: 99010,   // ← REEMPLAZAR con ID real Canvas
-    nombre: "Escenarios — Posgrado — Teórico",
-    disenoInstruccional: "Escenarios",
-    nivelFormacion: "Posgrado",
-    tipologia: "Teórico",
-  },
-  {
-    id: 99011,   // ← REEMPLAZAR con ID real Canvas
-    nombre: "Escenarios — Posgrado — Práctica",
-    disenoInstruccional: "Escenarios",
-    nivelFormacion: "Posgrado",
-    tipologia: "Práctica",
-  },
-  {
-    id: 99012,   // ← REEMPLAZAR con ID real Canvas
-    nombre: "Escenarios — Posgrado — Teórico-Práctico",
-    disenoInstruccional: "Escenarios",
-    nivelFormacion: "Posgrado",
-    tipologia: "Teórico-Práctico",
+    tipologia: "Profundización",
   },
 ]
 
