@@ -52,37 +52,46 @@ export function DropZone({ onUploadSuccess }: DropZoneProps) {
 
   // ── Drag & Drop handlers ─────────────────────────────────────────────────
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = "copy"
     setIsDragging(true)
   }, [])
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
+  
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
+    e.stopPropagation()
+    // Solo desactiva si el cursor salió del contenedor completo,
+    // no de un elemento hijo dentro del área
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return
     setIsDragging(false)
   }, [])
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
+    e.stopPropagation()
     setIsDragging(false)
-
+  
     const dropped = Array.from(e.dataTransfer.files)
+    if (dropped.length === 0) return
+  
     const zip   = dropped.find(f => f.name.toLowerCase().endsWith(".zip"))
     const excel = dropped.find(f => f.name.match(/\.(xlsx|xls)$/i))
-
+  
     if (!zip) {
-      setError("Arrastra al menos un archivo .zip")
+      setError("El archivo arrastrado debe ser un .zip")
       return
     }
-
+  
     const errZip = validarArchivo(zip, "zip")
     if (errZip) { setError(errZip); return }
-
+  
     if (excel) {
       const errExcel = validarArchivo(excel, "excel")
       if (errExcel) { setError(errExcel); return }
     }
-
+  
     setError(null)
     setFiles({ zipFile: zip, excelFile: excel })
   }, [])
