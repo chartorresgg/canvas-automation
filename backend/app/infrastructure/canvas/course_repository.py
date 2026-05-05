@@ -139,7 +139,6 @@ class CourseRepository:
             "course[course_code]": name,
             "course[is_public]": "false",
             "course[license]":   "private",
-            "enroll_me":         "true",
         }
 
         respuesta = await self._http.post(
@@ -326,3 +325,25 @@ class CourseRepository:
             course_id, len(actividades),
         )
         return actividades
+
+    async def list_discussion_topics(self, course_id: int) -> list[dict]:
+        """
+        Lista todos los foros de discusión de un curso Canvas.
+
+        Args:
+            course_id: ID del curso Canvas.
+
+        Returns:
+            Lista de dicts con los datos de cada foro.
+        """
+        logger.info("Listando foros del curso %d", course_id)
+
+        foros = await self._http.get_paginated(
+            f"courses/{course_id}/discussion_topics",
+            params={"per_page": 100},
+        )
+
+        logger.info(
+            "Curso %d: %d foro(s) encontrado(s)", course_id, len(foros)
+        )
+        return foros

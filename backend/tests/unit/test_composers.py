@@ -79,9 +79,10 @@ class TestMaterialFundamentalComposer:
     def test_es_subclase_de_ipage_composer(self) -> None:
         assert issubclass(MaterialFundamentalComposer, IPageComposer)
 
+   # Test 1: cambiar "Bannermaterialfundamental" → "cabezote_mat_fund"
     def test_contiene_banner_material_fundamental(self) -> None:
         html = MaterialFundamentalComposer().compose(COURSE_ID, self._ctx_basico())
-        assert "Bannermaterialfundamental" in html
+        assert "cabezote_mat_fund" in html
 
     def test_contiene_boton_lectura_con_file_id(self) -> None:
         html = MaterialFundamentalComposer().compose(COURSE_ID, self._ctx_basico())
@@ -151,7 +152,7 @@ class TestMaterialFundamentalComposer:
             {"page_url": "unidad-1-contenido-interactivo", "numero": 1}
         ]
         html = MaterialFundamentalComposer().compose(COURSE_ID, ctx)
-        assert "08CI01" in html
+        assert "022ri01" in html
         assert "unidad-1-contenido-interactivo" in html
 
     def test_boton_material_fundamental_pdf(self) -> None:
@@ -181,7 +182,7 @@ class TestMaterialFundamentalComposer:
         }
         html = MaterialFundamentalComposer().compose(COURSE_ID, ctx)
         assert "<p>" in html
-        assert "Bannermaterialfundamental" in html
+        assert "cabezote_mat_fund" in html
 
 
 # ══════════════════════════════════════════════════════════════════════════════

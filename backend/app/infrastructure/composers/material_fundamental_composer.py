@@ -17,7 +17,7 @@ _POLI_BASE = "https://poli.instructure.com"
 _CDN_BASE  = "https://imgact.poligran.edu.co/dise_Instruc_v1"
 
 # ── Códigos de imagen institucionales ────────────────────────────────────────
-_BANNER_MAT_FUND = f"{_CDN_BASE}/Bannermaterialfundamental.png"
+_BANNER_MAT_FUND = f"{_CDN_BASE}/cabezote_mat_fund.png"
 
 # Video de introducción por unidad
 _VIDEO_INTRO: dict[int, str] = {
@@ -53,10 +53,10 @@ _ACTIVIDAD_SUMATIVA: dict[int, str] = {
 
 # Contenido interactivo SCORM (hasta 4 por unidad)
 _CONTENIDO_INTERACTIVO: dict[int, str] = {
-    1: f"{_CDN_BASE}/08CI01.png",
-    2: f"{_CDN_BASE}/08CI02.png",
-    3: f"{_CDN_BASE}/08CI03.png",
-    4: f"{_CDN_BASE}/08CI04.png",
+    1: f"{_CDN_BASE}/022ri01.png",
+    2: f"{_CDN_BASE}/022ri02.png",
+    3: f"{_CDN_BASE}/022ri03.png",
+    4: f"{_CDN_BASE}/022ri04.png",
 }
 
 
@@ -196,13 +196,13 @@ class MaterialFundamentalComposer(IPageComposer):
     @staticmethod
     def _banner() -> str:
         """Banner superior institucional de Material Fundamental."""
+        url = f"{_CDN_BASE}/cabezote_mat_fund.png"
         return (
-            f'<p><span class="iconos">'
-            f'<img id="20600" '
-            f'src="{_BANNER_MAT_FUND}" '
-            f'alt="Bannermaterialfundamental.png" '
-            f'data-api-endpoint="{_BANNER_MAT_FUND}" '
-            f'data-api-returntype="File" /></span></p>'
+            f'<p><img id="22169" role="banner de página" '
+            f'src="{url}" '
+            f'alt="" '
+            f'data-api-endpoint="{url}" '
+            f'data-api-returntype="File" /></p>'
         )
 
     @staticmethod
@@ -283,36 +283,43 @@ class MaterialFundamentalComposer(IPageComposer):
     @staticmethod
     def _embed_vimeo(vimeo_url: str, titulo: str) -> str:
         """
-        Iframe de video Vimeo incrustado directamente en la página.
-        Usado cuando el recurso de material fundamental es un video Vimeo.
+        Botón que abre el video Vimeo de material fundamental en nueva pestaña.
+        La imagen es siempre 06MFV00.png independiente de la unidad.
         """
+        imagen_url = f"{_CDN_BASE}/06MFV00.png"
+
         return (
-            f'<p>'
-            f'<iframe title="{titulo}" '
-            f'src="{vimeo_url}" '
-            f'width="640" height="360" '
-            f'frameborder="0" '
-            f'allow="autoplay; fullscreen; picture-in-picture" '
-            f'allowfullscreen>'
-            f'</iframe>'
-            f'</p>'
+            f'<a class="toModal" title="Vídeo" '
+            f'href="{vimeo_url}" '
+            f'target="_blank" rel="noopener">'
+            f'<span class="iconos">'
+            f'<img id="20605" style="width: 190px;" '
+            f'src="{imagen_url}" '
+            f'alt="video" '
+            f'data-api-endpoint="{imagen_url}" '
+            f'data-api-returntype="File" />'
+            f'</span></a>'
         )
 
     @staticmethod
     def _embed_podcast(soundcloud_url: str) -> str:
         """
-        Iframe del reproductor de SoundCloud incrustado en la página.
-        Canvas soporta iframes de SoundCloud con la URL de embed.
+        Botón que abre el podcast de SoundCloud en una nueva pestaña.
+        La imagen es siempre 07MFP00.png independiente de la unidad.
         """
+        imagen_url = f"{_CDN_BASE}/07MFP00.png"
+
         return (
-            f'<p>'
-            f'<iframe '
-            f'src="{soundcloud_url}" '
-            f'width="100%" height="166" '
-            f'scrolling="no" frameborder="no" '
-            f'allow="autoplay">'
-            f'</iframe>'
-            f'</p>'
+            f'<a class="toModal" title="Podcast" '
+            f'href="{soundcloud_url}" '
+            f'target="_blank" rel="noopener">'
+            f'<span class="iconos">'
+            f'<img id="20594" style="width: 185px;" '
+            f'src="{imagen_url}" '
+            f'alt="podcast" '
+            f'data-api-endpoint="{imagen_url}" '
+            f'data-api-returntype="File" />'
+            f'</span></a>'
         )
 
     @staticmethod

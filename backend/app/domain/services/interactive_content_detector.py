@@ -21,8 +21,8 @@ _PATRONES_CARPETA = [
     re.compile(r"MF_U(\d+)(?:_(\d+))?$",                      re.IGNORECASE),
     re.compile(r"U(\d+)_Material[_\s]*fundamental(?:_(\d+))?$", re.IGNORECASE),
     re.compile(r"U(\d+)_MF(\d+)$",                              re.IGNORECASE),
+    re.compile(r"U(\d+)_MF$",                                   re.IGNORECASE),  # ← nuevo
 ]
-
 
 class InteractiveContentDetector:
     """

@@ -20,6 +20,9 @@ from app.infrastructure.composers.complementary_page_composer import (
     ComplementaryPageComposer,
 )
 from app.infrastructure.composers.front_page_composer import FrontPageComposer
+from app.infrastructure.composers.material_de_trabajo_composer import (
+    MaterialDeTrabajoComposer,
+)
 
 
 # ── Tipos de página soportados ────────────────────────────────────────────────
@@ -33,6 +36,7 @@ class PageType:
     MATERIAL_FUNDAMENTAL:  str = "material_fundamental"
     COMPLEMENTARY:         str = "complementary"
     FRONT:                 str = "front"
+    MATERIAL_TRABAJO:      str = "material_trabajo"
 
 
 class PageComposerFactory:
@@ -59,6 +63,7 @@ class PageComposerFactory:
             PageType.MATERIAL_FUNDAMENTAL: MaterialFundamentalComposer,
             PageType.COMPLEMENTARY:        ComplementaryPageComposer,
             PageType.FRONT:                FrontPageComposer,
+            PageType.MATERIAL_TRABAJO: MaterialDeTrabajoComposer,
         }
 
     def register(
