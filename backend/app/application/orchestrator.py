@@ -26,6 +26,7 @@ from app.domain.services.file_normalizer import FileNormalizer
 from app.domain.services.interactive_content_detector import (
     InteractiveContentDetector,
 )
+from app.domain.services.guion_excel_reader import GuionData, GuionExcelReader
 from app.domain.services.zip_processor import ZipProcessor
 from app.domain.value_objects.deployment_config import CourseOption, DeploymentConfig
 from app.domain.value_objects.progress_event import ProgressEvent
@@ -311,6 +312,96 @@ class DeploymentOrchestrator:
 
         return summary_container[0]
 
+    async def _crear_paginas_interactivas(
+        self,
+        course_id:       int,
+        interactive_map: dict[int, list[dict]],
+    ) -> dict[int, list[dict]]:
+        """
+        Crea en Canvas las páginas wiki para cada paquete SCORM detectado.
+
+        Slug y título institucional:
+            Un solo contenido:  slug = "unidad-1-material-interactivo"
+                                title = "Unidad 1 - Material interactivo"
+            Múltiples:          slug = "unidad-1-material-interactivo-2"
+                                title = "Unidad 1 - Material interactivo 2"
+        """
+        paginas_creadas: dict[int, list[dict]] = {}
+
+        for unidad, contenidos in interactive_map.items():
+            paginas_creadas[unidad] = []
+            multiples = len(contenidos) > 1
+
+            for info in contenidos:
+                numero       = info["numero"]
+                file_id      = info["file_id"]
+                es_enumerado = info.get("es_enumerado", False)
+
+                if multiples or es_enumerado:
+                    slug  = f"unidad-{unidad}-material-interactivo-{numero}"
+                    title = f"Unidad {unidad} - Material interactivo {numero}"
+                else:
+                    slug  = f"unidad-{unidad}-material-interactivo"
+                    title = f"Unidad {unidad} - Material interactivo"
+
+                composer = self._factory.create(PageType.IFRAME)
+                html = composer.compose(course_id, {"file_id": file_id})
+
+                try:
+                    await self._page_repo.update_or_create_page(
+                        course_id, slug, title, html
+                    )
+                    logger.info(
+                        "Página interactiva creada/actualizada: '%s'", slug
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "No se pudo crear página interactiva '%s': %s", slug, exc
+                    )
+
+                paginas_creadas[unidad].append({
+                    "numero":       numero,
+                    "file_id":      file_id,
+                    "page_url":     slug,
+                    "es_enumerado": es_enumerado,
+                })
+
+        return paginas_creadas
+    
+    @staticmethod
+    def _buscar_archivos_material_trabajo(
+        files_map: dict[str, int]
+    ) -> list[dict]:
+        """
+        Busca archivos PDF de Material de trabajo por unidad.
+
+        Detecta archivos en "3. Material de trabajo/" cuyo nombre
+        empieza por U{n} y extrae el número de unidad.
+
+        Returns:
+            Lista de {file_id, unidad} ordenada por unidad.
+        """
+        import re as _re
+
+        archivos: list[dict] = []
+        prefijo = "3. Material de trabajo/"
+
+        for ruta, file_id in files_map.items():
+            if not ruta.lower().startswith(prefijo.lower()):
+                continue
+            nombre = ruta[len(prefijo):]
+            if "/" in nombre:
+                continue  # ignorar subcarpetas
+
+            match = _re.match(r"u(\d)", nombre, _re.IGNORECASE)
+            if match:
+                archivos.append({
+                    "file_id": file_id,
+                    "unidad":  int(match.group(1)),
+                })
+
+        return sorted(archivos, key=lambda x: x["unidad"])
+
     async def _actualizar_paginas(
         self,
         course_info:     CourseInfo,
@@ -319,6 +410,21 @@ class DeploymentOrchestrator:
         config:          DeploymentConfig,
     ) -> None:
         course_id = course_info.id
+
+        # Leer Guion Excel una sola vez — alimenta Material Fundamental y Front
+        guion_data: GuionData | None = None
+        if config.excel_path and config.excel_path.exists():
+            try:
+                guion_data = GuionExcelReader(config.excel_path).read()
+                logger.info(
+                    "Guion Excel leído: video_inicial=%s, unidades=%s",
+                    bool(guion_data.video_inicial_url),
+                    list(guion_data.unidades.keys()),
+                )
+            except Exception as exc:
+                logger.warning(
+                    "No se pudo leer Guion Excel — páginas sin multimedia: %s", exc
+                )
 
         # 1. Página de presentación
         file_id_presentacion = files_map.get("1. Presentación/index.html")
@@ -347,29 +453,47 @@ class DeploymentOrchestrator:
                 logger.warning("No se pudo actualizar cierre: %s", exc)
 
         # 3. Página de Material de trabajo
-        file_id_trabajo = files_map.get("3. Material de trabajo/index.html")
-        if file_id_trabajo:
+        # Paso 3 — Material de trabajo (PDFs individuales o index.html)
+        archivos_trabajo = self._buscar_archivos_material_trabajo(files_map)
+        if archivos_trabajo:
+            composer = self._factory.create(PageType.MATERIAL_TRABAJO)
+            html = composer.compose(course_id, {"archivos": archivos_trabajo})
+            try:
+                await self._page_repo.update_page(
+                    course_id, "material-de-trabajo", html
+                )
+                logger.info("Página 'material-de-trabajo' actualizada con botones")
+            except Exception as exc:
+                logger.warning("No se pudo actualizar material-de-trabajo: %s", exc)
+        elif files_map.get("3. Material de trabajo/index.html"):
+            # Fallback: index.html como iframe
+            file_id_trabajo = files_map["3. Material de trabajo/index.html"]
             composer = self._factory.create(PageType.IFRAME)
             html = composer.compose(course_id, {"file_id": file_id_trabajo})
             try:
                 await self._page_repo.update_page(
                     course_id, "material-de-trabajo", html
                 )
-                logger.info("Página 'material-de-trabajo' actualizada")
+                logger.info("Página 'material-de-trabajo' actualizada como iframe")
             except Exception as exc:
                 logger.warning("No se pudo actualizar material-de-trabajo: %s", exc)
 
-        # 4. Páginas de Material Fundamental — slug institucional correcto
+        # Paso 3.5 — Crear páginas interactivas ANTES de Material Fundamental
+        paginas_interactivas_creadas = await self._crear_paginas_interactivas(
+            course_id, interactive_map
+        )
+
+        # 4. Páginas de Material Fundamental — con datos del Guion Excel
         for unidad in range(1, 5):
             ctx = self._construir_ctx_material_fundamental(
                 unidad=unidad,
                 files_map=files_map,
-                interactive_map=interactive_map,
+                interactive_map=paginas_interactivas_creadas,
                 course_id=course_id,
+                guion_data=guion_data,
             )
             composer = self._factory.create(PageType.MATERIAL_FUNDAMENTAL)
             html = composer.compose(course_id, ctx)
-            # Slug correcto: "unidad-1-material-fundamental"
             slug = f"unidad-{unidad}-material-fundamental"
             try:
                 await self._page_repo.update_page(course_id, slug, html)
@@ -377,7 +501,7 @@ class DeploymentOrchestrator:
             except Exception as exc:
                 logger.warning("No se pudo actualizar '%s': %s", slug, exc)
 
-        # 5. Páginas de Material Complementario — slug institucional correcto
+        # 5. Páginas de Material Complementario
         for unidad in range(1, 5):
             file_id_comp = self._buscar_complemento(unidad, files_map)
             if not file_id_comp:
@@ -388,7 +512,6 @@ class DeploymentOrchestrator:
                 "file_id":  file_id_comp,
                 "filename": f"U{unidad}_Complemento.pdf",
             })
-            # Slug correcto: "unidad-1-complementario"
             slug = f"unidad-{unidad}-complementario"
             try:
                 await self._page_repo.update_or_create_page(
@@ -400,46 +523,55 @@ class DeploymentOrchestrator:
             except Exception as exc:
                 logger.warning("No se pudo actualizar '%s': %s", slug, exc)
 
-        # 6. Front del curso (solo curso nuevo)
+        # 6. Front del curso
         if config.requires_front_page_update or config.is_new_course:
-            await self._actualizar_front(course_id, course_info.name, config)
+            await self._actualizar_front(
+                course_id, course_info.name, config, guion_data
+            )
 
     async def _actualizar_front(
         self,
         course_id:   int,
         course_name: str,
         config:      DeploymentConfig,
+        guion_data:  GuionData | None = None,
     ) -> None:
         """
-        Actualiza la página 'front-del-curso' con datos del Excel del guion.
-
-        En Sprint 2 usa solo el nombre del curso. En Sprint 3, cuando
-        GuionExcelReader esté implementado, se leerán las URLs de Vimeo,
-        SoundCloud y los párrafos de cada unidad.
-
-        Args:
-            course_id:   ID del curso Canvas.
-            course_name: Nombre oficial del curso.
-            config:      DeploymentConfig con excel_path opcional.
+        Actualiza 'front-del-curso'. Recibe guion_data ya parseado
+        para evitar leer el Excel dos veces.
         """
-        ctx: dict = {
-            "course_name":  course_name,
-            "video_url":    "",    # Sprint 3: GuionExcelReader
-            "texto_inicio": "",    # Sprint 3: GuionExcelReader
-            "texto_u1":     "",    # Sprint 3: GuionExcelReader
-            "texto_u2":     "",    # Sprint 3: GuionExcelReader
-            "texto_u3":     "",    # Sprint 3: GuionExcelReader
-            "texto_u4":     "",    # Sprint 3: GuionExcelReader
-            "texto_cierre": "",    # Sprint 3: GuionExcelReader
-        }
+        ctx: dict = {"course_name": course_name}
+
+        if guion_data:
+            ctx["video_url"]    = guion_data.video_inicial_url or ""
+            ctx["texto_inicio"] = guion_data.texto_inicio
+            ctx["texto_u1"]     = guion_data.unidad(1).parrafo_intro
+            ctx["texto_u2"]     = guion_data.unidad(2).parrafo_intro
+            ctx["texto_u3"]     = guion_data.unidad(3).parrafo_intro
+            ctx["texto_u4"]     = guion_data.unidad(4).parrafo_intro
+            ctx["texto_cierre"] = guion_data.texto_cierre
+        elif config.excel_path and config.excel_path.exists():
+            # Fallback: leer el Excel si no vino del paso anterior
+            try:
+                lector    = GuionExcelReader(config.excel_path)
+                guion     = lector.read()
+                ctx["video_url"]    = guion.video_inicial_url or ""
+                ctx["texto_inicio"] = guion.texto_inicio
+                ctx["texto_u1"]     = guion.unidad(1).parrafo_intro
+                ctx["texto_u2"]     = guion.unidad(2).parrafo_intro
+                ctx["texto_u3"]     = guion.unidad(3).parrafo_intro
+                ctx["texto_u4"]     = guion.unidad(4).parrafo_intro
+                ctx["texto_cierre"] = guion.texto_cierre
+            except Exception as exc:
+                logger.warning(
+                    "No se pudo leer Guion Excel para front: %s", exc
+                )
 
         composer = self._factory.create(PageType.FRONT)
         html = composer.compose(course_id, ctx)
 
         try:
-            await self._page_repo.update_page(
-                course_id, "front-del-curso", html
-            )
+            await self._page_repo.update_page(course_id, "front-del-curso", html)
             logger.info("Página 'front-del-curso' actualizada")
         except Exception as exc:
             logger.warning("No se pudo actualizar front-del-curso: %s", exc)
@@ -451,25 +583,17 @@ class DeploymentOrchestrator:
         config:    DeploymentConfig,
     ) -> None:
         """
-        Vincula los PDFs del aula a sus actividades correspondientes en Canvas.
-
-        Obtiene la lista de actividades del curso y delega la vinculación
-        masiva a PageRepository.link_pdfs_bulk().
-
-        El modelo instruccional se deriva del diseño instruccional del config
-        (en Sprint 2 se pasa como parámetro desde la selección del analista).
-
-        Args:
-            course_id: ID del curso Canvas.
-            files_map: {ruta_relativa: file_id} con los PDFs subidos.
-            config:    DeploymentConfig con metadatos del despliegue.
+        Vincula PDFs a actividades (tareas y foros) del curso.
         """
         try:
-            actividades = await self._course_repo.list_assignments(course_id)
+            actividades, foros = await asyncio.gather(
+                self._course_repo.list_assignments(course_id),
+                self._course_repo.list_discussion_topics(course_id),
+            )
 
-            if not actividades:
+            if not actividades and not foros:
                 logger.info(
-                    "Curso %d sin actividades — omitiendo vinculación de PDFs",
+                    "Curso %d sin actividades ni foros — omitiendo vinculación",
                     course_id,
                 )
                 return
@@ -480,11 +604,12 @@ class DeploymentOrchestrator:
                 files_map=files_map,
                 modelo=getattr(config, "modelo_instruccional", "Unidades"),
                 nivel=getattr(config, "nivel_formacion", "Pregrado"),
+                forums=foros,
             )
 
             exitosos = sum(1 for r in resultados if r.vinculado)
             logger.info(
-                "PDFs vinculados: %d/%d actividades",
+                "PDFs vinculados: %d/%d (tareas + foros)",
                 exitosos, len(resultados),
             )
 
@@ -503,22 +628,11 @@ class DeploymentOrchestrator:
         files_map:       dict[str, int],
         interactive_map: dict[int, list[dict]],
         course_id:       int,
+        guion_data:      GuionData | None = None,
     ) -> dict:
         """
-        Construye el contexto para MaterialFundamentalComposer de una unidad.
-
-        Clasifica los archivos del FileMap en las categorías que el
-        Composer necesita: lecturas, material_fundamental_pdfs, actividades,
-        páginas interactivas y recursos multimedia (Sprint 3).
-
-        Args:
-            unidad:          Número de unidad (1-4).
-            files_map:       {ruta_relativa: file_id} de todos los archivos.
-            interactive_map: {unidad: [paginas_scorm]} del detector.
-            course_id:       ID del curso Canvas (para construir URLs de páginas).
-
-        Returns:
-            Diccionario ctx listo para pasar a MaterialFundamentalComposer.
+        Construye el contexto para MaterialFundamentalComposer.
+        Si guion_data está disponible, inyecta URLs de video, podcast y Vimeo.
         """
         lecturas:      list[dict] = []
         mat_fund_pdfs: list[dict] = []
@@ -529,49 +643,45 @@ class DeploymentOrchestrator:
         for ruta, file_id in files_map.items():
             if not ruta.startswith(prefijo):
                 continue
-
             nombre = ruta[len(prefijo):]
             if "/" in nombre:
-                continue  # es un archivo dentro de subcarpeta SCORM
-
+                continue
             nombre_lower = nombre.lower()
-
-            # Filtrar por unidad
             if not nombre_lower.startswith(f"u{unidad}_"):
                 continue
 
-            # Clasificar por tipo
             if "lectura_fundamental" in nombre_lower:
                 seq = self._extraer_secuencia(nombre)
                 lecturas.append({"file_id": file_id, "secuencia": seq})
-
             elif "material_fundamental" in nombre_lower:
                 mat_fund_pdfs.append({"file_id": file_id})
-
             elif "actividad_formativa" in nombre_lower:
                 actividades.append({"file_id": file_id, "tipo": "formativa"})
-
             elif "actividad_sumativa" in nombre_lower:
                 actividades.append({"file_id": file_id, "tipo": "sumativa"})
 
-        # Ordenar lecturas por secuencia
         lecturas.sort(key=lambda x: x["secuencia"])
 
-        # Construir info de páginas interactivas para esta unidad
         paginas_interactivas: list[dict] = []
         for info in interactive_map.get(unidad, []):
-            numero = info["numero"]
-            es_enumerado = info.get("es_enumerado", False)
-            if es_enumerado or len(interactive_map.get(unidad, [])) > 1:
-                slug = f"unidad-{unidad}-contenido-interactivo-{numero}"
-            else:
-                slug = f"unidad-{unidad}-contenido-interactivo"
-
+            # interactive_map ya viene con page_url calculado
+            # desde _crear_paginas_interactivas — usarlo directamente
             paginas_interactivas.append({
-                "page_url":     slug,
-                "numero":       numero,
-                "es_enumerado": es_enumerado,
+                "page_url":     info["page_url"],
+                "numero":       info["numero"],
+                "es_enumerado": info.get("es_enumerado", False),
             })
+
+        # URLs multimedia del Guion Excel (si está disponible)
+        video_intro_url: str | None = None
+        podcast_url:     str | None = None
+        vimeo_url:       str | None = None
+
+        if guion_data:
+            unidad_guion = guion_data.unidad(unidad)
+            video_intro_url = unidad_guion.video_intro_url
+            podcast_url     = unidad_guion.podcast_url
+            vimeo_url       = unidad_guion.vimeo_mat_fund_url
 
         return {
             "unidad":               unidad,
@@ -579,10 +689,9 @@ class DeploymentOrchestrator:
             "mat_fund_pdfs":        mat_fund_pdfs,
             "actividades":          actividades,
             "paginas_interactivas": paginas_interactivas,
-            # Sprint 3: GuionExcelReader llenará estas URLs
-            "video_intro_url": None,
-            "podcast_url":     None,
-            "vimeo_url":       None,
+            "video_intro_url":      video_intro_url,
+            "podcast_url":          podcast_url,
+            "vimeo_url":            vimeo_url,
         }
 
     @staticmethod

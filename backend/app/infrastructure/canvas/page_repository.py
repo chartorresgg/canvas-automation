@@ -93,6 +93,7 @@ class PageRepository:
         course_id: int,
         page_slug: str,
         html: str,
+        title: str | None = None,
     ) -> PageInfo:
         """
         Actualiza el cuerpo HTML de una página wiki existente en Canvas.
@@ -118,8 +119,11 @@ class PageRepository:
             "wiki_page": {
                 "body":          html,
                 "editing_roles": "teachers",
+                "published":     True,
             }
         }
+        if title:
+            payload["wiki_page"]["title"] = title   # ← inyectar título si se provee
 
         respuesta = await self._http.put(
             f"courses/{course_id}/pages/{page_slug}",
@@ -203,7 +207,9 @@ class PageRepository:
             PageInfo de la página actualizada o creada.
         """
         try:
-            return await self.update_page(course_id, page_slug, html)
+            return await self.update_page(
+            course_id, page_slug, html, title=title   # ← pasar título
+        )
         except CanvasNotFoundError:
             logger.info(
                 "Página '%s' no existe, creando nueva...", page_slug
@@ -338,6 +344,64 @@ class PageRepository:
                 motivo_fallo=str(exc),
             )
 
+
+    async def link_pdf_to_forum(
+        self,
+        course_id:  int,
+        topic_id:   int,
+        topic_name: str,
+        file_id:    int,
+        filename:   str,
+    ) -> AssignmentLinkResult:
+        """
+        Vincula un PDF a un foro de discusión con vista previa en línea.
+
+        En Canvas, los foros usan el campo 'message' (no 'description')
+        y el endpoint es discussion_topics en lugar de assignments.
+
+        Args:
+            course_id:  ID del curso Canvas.
+            topic_id:   ID del foro de discusión.
+            topic_name: Nombre del foro (para logging).
+            file_id:    ID del archivo PDF ya subido a Canvas.
+            filename:   Nombre del archivo PDF.
+
+        Returns:
+            AssignmentLinkResult con el resultado de la operación.
+        """
+        logger.info(
+            "Vinculando PDF file_id=%d a foro '%s' (id=%d)",
+            file_id, topic_name, topic_id,
+        )
+
+        html = self._generar_html_pdf_inline(course_id, file_id, filename, es_foro=True)
+
+        try:
+            await self._http.put(
+                f"courses/{course_id}/discussion_topics/{topic_id}",
+                json={"message": html},
+            )
+            logger.info(
+                "PDF vinculado exitosamente a foro '%s'", topic_name
+            )
+            return AssignmentLinkResult(
+                assignment_id=topic_id,
+                assignment_name=topic_name,
+                file_id=file_id,
+                vinculado=True,
+            )
+        except Exception as exc:
+            logger.error(
+                "Error vinculando '%s' a foro '%s': %s",
+                filename, topic_name, exc,
+            )
+            return AssignmentLinkResult(
+                assignment_id=topic_id,
+                assignment_name=topic_name,
+                file_id=file_id,
+                vinculado=False,
+                motivo_fallo=str(exc),
+            )
     async def link_pdfs_bulk(
         self,
         course_id:    int,
@@ -345,28 +409,36 @@ class PageRepository:
         files_map:    dict[str, int],
         modelo:       str,
         nivel:        str,
+        forums:       list[dict] | None = None,
     ) -> list[AssignmentLinkResult]:
         """
-        Vincula PDFs a todas las actividades correspondientes del curso.
+        Vincula PDFs a todas las actividades y foros del curso.
 
-        Itera las actividades del curso, identifica el PDF correspondiente
-        según el modelo instruccional y el patrón de nombre, y vincula
-        cada PDF usando link_pdf_to_assignment().
+        Busca primero en tareas (assignments). Si no encuentra la actividad,
+        busca en foros de discusión (discussion_topics), ya que algunas
+        actividades formativas se implementan como foros en Canvas.
 
         Args:
             course_id:   ID del curso Canvas.
-            assignments: Lista de actividades del curso (de CourseRepository).
+            assignments: Lista de tareas del curso (de CourseRepository).
             files_map:   Mapa {ruta_relativa: file_id} de FileRepository.
             modelo:      Modelo instruccional ("Unidades" o "Nuevo sistema").
             nivel:       Nivel de formación ("Pregrado" o "Posgrado").
+            forums:      Lista de foros del curso (opcional).
 
         Returns:
-            Lista de AssignmentLinkResult, uno por cada actividad procesada.
+            Lista de AssignmentLinkResult por cada actividad/foro procesado.
         """
         resultados: list[AssignmentLinkResult] = []
-
-        # Índice de PDFs disponibles por nombre de archivo (sin ruta ni extensión)
         pdfs_disponibles = self._indexar_pdfs(files_map)
+
+        # Índice de foros por nombre para búsqueda rápida
+        foros_index: dict[str, dict] = {}
+        if forums:
+            for foro in forums:
+                nombre = foro.get("title", "")
+                if nombre:
+                    foros_index[nombre] = foro
 
         for actividad in assignments:
             assignment_id   = actividad.get("id")
@@ -375,7 +447,6 @@ class PageRepository:
             if not assignment_id or not assignment_name:
                 continue
 
-            # Buscar PDF correspondiente según el nombre de la actividad
             match = self._encontrar_pdf_para_actividad(
                 assignment_name=assignment_name,
                 modelo=modelo,
@@ -401,9 +472,38 @@ class PageRepository:
             )
             resultados.append(resultado)
 
+        # Buscar PDFs para foros que no se encontraron en tareas
+        nombres_ya_vinculados = {r.assignment_name for r in resultados if r.vinculado}
+
+        for nombre_foro, foro in foros_index.items():
+            if nombre_foro in nombres_ya_vinculados:
+                continue
+
+            match = self._encontrar_pdf_para_actividad(
+                assignment_name=nombre_foro,
+                modelo=modelo,
+                nivel=nivel,
+                pdfs_disponibles=pdfs_disponibles,
+            )
+
+            if not match:
+                continue
+
+            ruta_rel, file_id = match
+            filename = ruta_rel.split("/")[-1]
+
+            resultado = await self.link_pdf_to_forum(
+                course_id=course_id,
+                topic_id=foro["id"],
+                topic_name=nombre_foro,
+                file_id=file_id,
+                filename=filename,
+            )
+            resultados.append(resultado)
+
         exitosos = sum(1 for r in resultados if r.vinculado)
         logger.info(
-            "Vinculación completada: %d/%d exitosos",
+            "Vinculación completada: %d/%d exitosos (tareas + foros)",
             exitosos, len(resultados),
         )
         return resultados
@@ -417,37 +517,49 @@ class PageRepository:
         course_id: int,
         file_id:   int,
         filename:  str,
+        es_foro:   bool = False,
     ) -> str:
         """
-        Genera el HTML que Canvas interpreta como PDF con vista previa
-        en línea expandida por defecto.
+        Genera HTML con imagen de cabecera + enlace PDF con vista previa
+        expandida automáticamente.
 
-        La URL debe apuntar a /download?wrap=1 para que Canvas active
-        el visor de documentos integrado con preview expandido.
+        Imagen de cabecera:
+            Tareas: https://moodin.mipoli.co/imgmooact/entregas.jpg
+            Foros:  https://moodin.mipoli.co/imgmooact/forocolaborativo.jpg
         """
-        download_url = (
+        imagen_cabecera = (
+            "https://moodin.mipoli.co/imgmooact/forocolaborativo.jpg"
+            if es_foro else
+            "https://moodin.mipoli.co/imgmooact/entregas.jpg"
+        )
+
+        img_html = (
+            f'<div><img src="{imagen_cabecera}" '
+            f'alt="" width="auto" height="auto" /></div>'
+        )
+
+        file_url = (
             f"{_BASE_URL_POLI}/courses/{course_id}"
-            f"/files/{file_id}/download?wrap=1"
+            f"/files/{file_id}/download"
         )
         api_endpoint = (
             f"{_BASE_URL_POLI}/api/v1"
             f"/courses/{course_id}/files/{file_id}"
         )
 
-        return (
-            f'<p>'
-            f'<a class="instructure_file_link instructure_scribd_file" '
+        embed = (
+            f'<a class="instructure_file_link instructure_scribd_file auto_open" '
             f'title="{filename}" '
-            f'href="{download_url}" '
-            f'target="_blank" '
-            f'rel="noopener noreferrer" '
+            f'href="{file_url}" '
+            f'target="_blank" rel="noopener" '
+            f'data-canvas-previewable="true" '
+            f'data-canvas-expanded="true" '
             f'data-api-endpoint="{api_endpoint}" '
-            f'data-api-returntype="File" '
-            f'data-canvas-previewable="true">'
-            f'{filename}'
-            f'</a>'
-            f'</p>'
+            f'data-api-returntype="File">'
+            f'{filename}</a>'
         )
+
+        return f"{img_html}\n<p>{embed}</p>"
 
     # ──────────────────────────────────────────────────────────────
     # Privados — matching PDF → actividad
