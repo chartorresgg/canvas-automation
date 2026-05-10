@@ -66,15 +66,10 @@ class FrontPageComposer(IPageComposer):
         """
         Reemplaza el contenido del div.modulo-desc del módulo indicado.
 
-        La estructura real del HTML institucional es:
-            <div class="modulo-title subitems-btn">
-                <br />
-                <p class="modulo-title-2">MODULO</p>
-            </div>
-            <div class="modulo-desc">CONTENIDO A REEMPLAZAR</div>
-
-        El patrón usa [\s\S]*? para saltar el </div> de modulo-title
-        y llegar al <div class="modulo-desc">.
+        Usa una función lambda como reemplazo (en lugar de un string)
+        para evitar que Python interprete caracteres como \\1, \\g<N>
+        en nuevo_texto como referencias a grupos de captura, lo que
+        provoca IndexError cuando el texto viene de Excel.
         """
         pattern = (
             rf'(<p class="modulo-title-2">\s*{re.escape(modulo)}\s*</p>'
@@ -82,13 +77,12 @@ class FrontPageComposer(IPageComposer):
             rf'([\s\S]*?)'
             rf'(</div>)'
         )
-        resultado = re.sub(
+        return re.sub(
             pattern,
-            rf'\g<1>{nuevo_texto}\g<3>',
+            lambda m: m.group(1) + nuevo_texto + m.group(3),
             html,
             flags=re.IGNORECASE,
         )
-        return resultado
 
     @staticmethod
     def _template_base() -> str:

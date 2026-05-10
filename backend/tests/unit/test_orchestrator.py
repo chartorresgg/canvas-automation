@@ -228,12 +228,15 @@ class TestInteractiveContentDetector:
         assert numeros == [1, 2, 3]
 
     @pytest.mark.parametrize("carpeta,unidad_esperada,numero_esperado", [
-        ("MF_U1",                      1, 1),
-        ("MF_U2_3",                    2, 3),
-        ("U1_Material fundamental",    1, 1),
-        ("U3_Material_fundamental_2",  3, 2),
-        ("U4_MF2",                     4, 2),
-    ])
+    ("MF_U1",         1, 1),
+    ("MF_U2_3",       2, 3),
+    ("U1_Material fundamental",   1, 1),
+    ("U3_Material_fundamental_2", 3, 2),
+    ("U4_MF2",        4, 2),
+    ("U1_MF_1",       1, 1),   # ← nuevo
+    ("U1_MF_2",       1, 2),   # ← nuevo
+    ("U4_MF_2",       4, 2),   # ← nuevo
+])
     def test_parsear_carpeta(
         self, carpeta: str, unidad_esperada: int, numero_esperado: int
     ) -> None:

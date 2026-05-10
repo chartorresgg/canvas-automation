@@ -16,7 +16,7 @@ import { Progress } from "@/components/ui/progress"
 import { Card, CardContent } from "@/components/ui/card"
 
 interface DropZoneProps {
-  onUploadSuccess: (result: UploadResult) => void
+  onUploadSuccess: (result: UploadResult, files: UploadedFiles) => void
 }
 
 type UploadState = "idle" | "uploading" | "success" | "error"
@@ -138,15 +138,18 @@ export function DropZone({ onUploadSuccess }: DropZoneProps) {
       setResult(response)
       setUploadState("success")
 
-      onUploadSuccess({
-        taskId:         response.task_id,
-        filename:       response.filename,
-        totalFiles:     response.total_files,
-        totalSizeMb:    response.total_size_mb,
-        foldersRenamed: response.folders_renamed,
-        filesRenamed:   response.files_renamed,
-        warnings:       response.warnings,
-      })
+      onUploadSuccess(
+        {
+          taskId:         response.task_id,
+          filename:       response.filename,
+          totalFiles:     response.total_files,
+          totalSizeMb:    response.total_size_mb,
+          foldersRenamed: response.folders_renamed,
+          filesRenamed:   response.files_renamed,
+          warnings:       response.warnings,
+        },
+        { zipFile: files.zipFile, excelFile: files.excelFile },
+      )
     } catch (err: unknown) {
       clearInterval(intervalo)
       setUploadState("error")

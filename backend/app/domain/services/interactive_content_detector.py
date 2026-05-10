@@ -20,8 +20,10 @@ logger = logging.getLogger(__name__)
 _PATRONES_CARPETA = [
     re.compile(r"MF_U(\d+)(?:_(\d+))?$",                      re.IGNORECASE),
     re.compile(r"U(\d+)_Material[_\s]*fundamental(?:_(\d+))?$", re.IGNORECASE),
-    re.compile(r"U(\d+)_MF(\d+)$",                              re.IGNORECASE),
-    re.compile(r"U(\d+)_MF$",                                   re.IGNORECASE),  # ← nuevo
+    re.compile(r"U(\d+)_MF_(\d+)$",                            re.IGNORECASE),  # ← U3_MF_3
+    re.compile(r"U(\d+)_MF(\d+)$",                             re.IGNORECASE),  # U3_MF3
+    re.compile(r"U(\d+)_MF$",                                  re.IGNORECASE),  # U3_MF
+    re.compile(r"U(\d+)_MF(?:_(\d+))?$",                         re.IGNORECASE),
 ]
 
 class InteractiveContentDetector:
@@ -43,8 +45,10 @@ class InteractiveContentDetector:
         """
         Detecta contenido interactivo SCORM en el FileMap.
 
-        Busca archivos story.html dentro de subcarpetas de
-        "2. Material fundamental/" que sigan las convenciones de nombre.
+        Busca story.html (o index.html como fallback) dentro de subcarpetas
+        de "2. Material fundamental/" que sigan las convenciones de nombre.
+        Comparaciones siempre en minúsculas para ser resiliente a diferencias
+        de casing en Windows (filesystems case-insensitive).
 
         Args:
             files_map: Mapa {ruta_relativa: file_id} de FileRepository.
@@ -52,43 +56,70 @@ class InteractiveContentDetector:
         Returns:
             Mapa {unidad: [{"numero", "file_id", "carpeta", "es_enumerado"}]}
             ordenado por número de contenido dentro de cada unidad.
-            Retorna dict vacío si no hay contenido interactivo.
         """
         contenido: dict[int, list[dict]] = {}
 
+        # Primera pasada: buscar story.html (principal) e index.html (fallback)
+        # Guardamos el mejor candidato por carpeta: story.html > index.html
+        mejores: dict[str, dict] = {}  # clave=carpeta_normalizada → info
+
         for ruta, file_id in files_map.items():
-            if not ruta.endswith("/story.html"):
+            ruta_lower = ruta.lower().replace("\\", "/")
+
+            # Solo archivos HTML dentro de "2. Material fundamental/"
+            if not ruta_lower.startswith("2. material fundamental/"):
+                continue
+
+            nombre_archivo = ruta_lower.split("/")[-1]
+            if nombre_archivo not in ("story.html", "index.html"):
                 continue
 
             partes = ruta.split("/")
-            # Estructura esperada: "2. Material fundamental/U1_MF1/story.html"
+            # Necesitamos al menos: carpeta_raiz / carpeta_scorm / archivo
             if len(partes) < 3:
                 continue
-            if partes[0] != "2. Material fundamental":
-                continue
 
-            carpeta_contenido = partes[1]
-            info = self._parsear_carpeta(carpeta_contenido)
-            if not info:
+            carpeta_contenido = partes[1]  # Ej: "U3_MF_3"
+            clave = carpeta_contenido.lower()
+
+            # story.html tiene prioridad sobre index.html
+            es_story = nombre_archivo == "story.html"
+            if clave in mejores and mejores[clave]["es_story"] and not es_story:
+                continue  # ya tenemos story.html, ignorar index.html
+
+            mejores[clave] = {
+                "carpeta":   carpeta_contenido,
+                "file_id":   file_id,
+                "es_story":  es_story,
+                "ruta":      ruta,
+            }
+
+        # Segunda pasada: parsear cada carpeta y construir el mapa por unidad
+        for clave, info in mejores.items():
+            carpeta_contenido = info["carpeta"]
+            file_id           = info["file_id"]
+
+            parsed = self._parsear_carpeta(carpeta_contenido)
+            if not parsed:
                 logger.warning(
                     "Carpeta SCORM no reconocida: '%s' — omitiendo",
                     carpeta_contenido,
                 )
                 continue
 
-            unidad, numero, es_enumerado = info
+            unidad, numero, es_enumerado = parsed
 
             contenido.setdefault(unidad, []).append({
-                "numero":       numero,
-                "file_id":      file_id,
-                "carpeta":      carpeta_contenido,
-                "ruta_completa": ruta,
-                "es_enumerado": es_enumerado,
+                "numero":        numero,
+                "file_id":       file_id,
+                "carpeta":       carpeta_contenido,
+                "ruta_completa": info["ruta"],
+                "es_enumerado":  es_enumerado,
             })
 
             logger.info(
-                "SCORM detectado: Unidad %d — Contenido %d (file_id=%d)",
-                unidad, numero, file_id,
+                "SCORM detectado: Unidad %d — Contenido %d (carpeta='%s', file_id=%d)",
+                unidad, numero, carpeta_contenido, file_id,
             )
 
         # Ordenar por número de contenido dentro de cada unidad
@@ -101,9 +132,7 @@ class InteractiveContentDetector:
         return contenido
 
     @staticmethod
-    def _parsear_carpeta(
-        carpeta: str,
-    ) -> tuple[int, int, bool] | None:
+    def _parsear_carpeta(carpeta: str) -> tuple[int, int, bool] | None:
         """
         Parsea el nombre de una carpeta SCORM y extrae unidad y número.
 
@@ -125,7 +154,11 @@ class InteractiveContentDetector:
             m = patron.match(carpeta)
             if m:
                 unidad = int(m.group(1))
-                numero_raw = m.group(2)
+                # Acceso seguro: no todos los patrones tienen grupo 2
+                try:
+                    numero_raw = m.group(2)
+                except IndexError:
+                    numero_raw = None
                 if numero_raw is not None:
                     return (unidad, int(numero_raw), True)
                 return (unidad, 1, False)

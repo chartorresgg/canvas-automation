@@ -653,3 +653,28 @@ class PageRepository:
                 return valor
 
         return None
+        
+    async def get_page_body_length(
+        self, course_id: int, page_slug: str
+    ) -> int:
+        """
+        Retorna la longitud del cuerpo HTML de una página.
+
+        Usado por el verificador para confirmar que la página
+        tiene contenido real (> umbral mínimo) y no está vacía.
+
+        Args:
+            course_id: ID del curso Canvas.
+            page_slug: Slug de la página a verificar.
+
+        Returns:
+            Longitud del cuerpo en caracteres. 0 si no existe o está vacía.
+        """
+        try:
+            respuesta = await self._http.get(
+                f"courses/{course_id}/pages/{page_slug}"
+            )
+            body = (respuesta or {}).get("body", "") or ""  # type: ignore[union-attr]
+            return len(body)
+        except Exception:
+            return 0
