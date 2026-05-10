@@ -22,9 +22,9 @@ import shutil
 import uuid
 from pathlib import Path
 
+from dataclasses import dataclass, field as dc_field
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
-
 from app.domain.value_objects.deployment_config import (
     CourseOption,
     DeploymentConfig,
@@ -211,6 +211,57 @@ async def stream_progreso(task_id: str) -> StreamingResponse:
         },
     )
 
+# ──────────────────────────────────────────────────────────────────────────────
+# POST /api/v1/deploy/cancel/{task_id}
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.post(
+    "/deploy/cancel/{task_id}",
+    status_code=200,
+    summary="Cancelar un despliegue en curso",
+    description=(
+        "Solicita la cancelación de una tarea de despliegue activa. "
+        "El proceso se detiene en la siguiente operación asíncrona "
+        "y emite un evento SSE con status='cancelled'."
+    ),
+)
+async def cancelar_deploy(task_id: str) -> dict:
+    """
+    Cancela un despliegue en curso por su task_id.
+
+    El frontend llama a este endpoint cuando el analista hace clic
+    en el botón Cancelar del ProgressTracker.
+
+    Returns:
+        Confirmación de que la cancelación fue solicitada.
+
+    Raises:
+        404: La tarea no existe.
+        409: La tarea ya terminó o ya fue cancelada.
+    """
+    if not task_manager.existe(task_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"No existe ninguna tarea activa con id '{task_id}'.",
+        )
+
+    cancelada = task_manager.cancelar(task_id)
+
+    if not cancelada:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "La tarea ya finalizó o ya fue cancelada. "
+                "No se puede cancelar una tarea terminada."
+            ),
+        )
+
+    logger.info("Cancelación aceptada para tarea: %s", task_id)
+    return {
+        "task_id": task_id,
+        "message": "Cancelación solicitada. El proceso se detendrá en breve.",
+    }
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # POST /api/v1/deploy/upload  (mantenido de Sprint 1 — validación previa)
@@ -298,41 +349,53 @@ async def _ejecutar_deploy_background(
     """
     Función que corre como BackgroundTask de FastAPI.
 
-    Crea el orquestador, ejecuta el deploy() como async generator,
-    deposita cada ProgressEvent en la queue, y envía el sentinel
-    al terminar (con éxito o con error).
-
-    La gestión del ciclo de vida de CanvasHttpClient se hace aquí
-    con `async with` para garantizar el cierre correcto.
+    Registra el asyncio.Task actual en TaskManager para permitir
+    cancelación externa vía task.cancel(). Maneja CancelledError
+    para emitir el evento de cancelación antes de limpiar.
     """
     http = None
+    paso_actual = 0  # rastrea el paso para el evento de cancelación
+
+    # Registrar el asyncio.Task actual para permitir task.cancel() externo
+    tarea_asyncio = asyncio.current_task()
+    if tarea_asyncio:
+        task_manager.registrar_asyncio_task(task_id, tarea_asyncio)
+
     try:
         http, orchestrator = await crear_orchestrator_context(TMP_DIR)
 
         async for event in orchestrator.deploy(config):
             queue.put_nowait(event)
+            paso_actual = event.step
             logger.debug(
                 "Task %s — evento: step=%d pct=%.1f status=%s",
                 task_id, event.step, event.percentage, event.status,
             )
-            # Si el evento es terminal, no hace falta esperar más
             if event.is_terminal:
                 break
 
+    except asyncio.CancelledError:
+        # El analista canceló el proceso desde el frontend
+        logger.info(
+            "Tarea %s cancelada por el usuario (paso %d)",
+            task_id, paso_actual,
+        )
+        evento_cancelado = ProgressEvent.cancelado(step=paso_actual)
+        queue.put_nowait(evento_cancelado)
+        # No re-raise: dejamos que finally limpie correctamente
+
     except Exception as exc:
-        # Error inesperado fuera del orquestador — emitir evento de fallo
         logger.error(
             "Error en BackgroundTask %s: %s", task_id, exc, exc_info=True
         )
         evento_fallo = ProgressEvent.fallido(
-            step=0,
+            step=paso_actual,
             message="Error interno del servidor",
             error=str(exc),
         )
         queue.put_nowait(evento_fallo)
 
     finally:
-        # Sentinel — indica al generador SSE que debe cerrar la conexión
         task_manager.marcar_completada(task_id)
         if http:
             await http.__aexit__(None, None, None)
@@ -385,3 +448,154 @@ async def _generar_stream_sse(
     except asyncio.CancelledError:
         # El cliente cerró la conexión antes de que terminara el proceso
         logger.info("SSE stream cancelado por cliente — task_id: %s", task_id)
+    
+    # ──────────────────────────────────────────────────────────────────────────────
+# GET /api/v1/deploy/verify/{course_id}   HU-14
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Páginas institucionales que deben existir en todo aula Máster
+_PAGINAS_INSTITUCIONALES = [
+    ("front-del-curso",               "Front del curso"),
+    ("inicio-presentacion",           "Presentación"),
+    ("cierre-retroalimentacion",      "Cierre"),
+    ("material-de-trabajo",           "Material de trabajo"),
+    ("unidad-1-material-fundamental", "Material Fundamental U1"),
+    ("unidad-2-material-fundamental", "Material Fundamental U2"),
+    ("unidad-3-material-fundamental", "Material Fundamental U3"),
+    ("unidad-4-material-fundamental", "Material Fundamental U4"),
+    ("unidad-1-complementario",       "Complementario U1"),
+    ("unidad-2-complementario",       "Complementario U2"),
+    ("unidad-3-complementario",       "Complementario U3"),
+    ("unidad-4-complementario",       "Complementario U4"),
+]
+
+# Umbral mínimo de caracteres en body para considerar página con contenido
+_MIN_BODY_CHARS = 300
+
+
+@router.get(
+    "/deploy/verify/{course_id}",
+    summary="Verificar integridad del despliegue",
+    description=(
+        "Consulta el curso en Canvas y verifica que las páginas institucionales "
+        "existen, que las actividades tienen PDFs vinculados y que el front del "
+        "curso tiene contenido real. Retorna un reporte de verificación."
+    ),
+)
+async def verificar_despliegue(course_id: int) -> JSONResponse:
+    """
+    Endpoint de verificación post-despliegue (HU-14).
+
+    Realiza 3 llamadas paralelas a Canvas:
+        1. list_pages      → detecta qué slugs institucionales existen
+        2. list_assignments → cuenta actividades con PDFs vinculados
+        3. get_page_body   → verifica que el front del curso tiene contenido
+
+    Retorna un reporte JSON con semáforo (success / warning / error).
+    """
+    http = None
+    try:
+        http, orchestrator = await crear_orchestrator_context(TMP_DIR)
+
+        # Reconstruir repositorios desde el contexto del orquestador
+        from app.infrastructure.canvas.course_repository import CourseRepository
+        from app.infrastructure.canvas.page_repository import PageRepository
+        from app.infrastructure.canvas.http_client import CanvasHttpClient
+
+        # Reusar el http del contexto
+        page_repo   = orchestrator._page_repo
+        course_repo = orchestrator._course_repo
+
+        # ── 1. Verificar que el curso existe ─────────────────────────
+        try:
+            course_info = await course_repo.get_course(course_id)
+        except Exception:
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"Curso {course_id} no encontrado en Canvas."},
+            )
+
+        # ── 2. Tres consultas en paralelo ─────────────────────────────
+        paginas_task     = asyncio.create_task(page_repo.list_pages(course_id))
+        actividades_task = asyncio.create_task(
+            course_repo.list_assignments(course_id)
+        )
+        front_body_task  = asyncio.create_task(
+            page_repo.get_page_body_length(course_id, "front-del-curso")
+        )
+
+        paginas_canvas, actividades, front_body_len = await asyncio.gather(
+            paginas_task, actividades_task, front_body_task
+        )
+
+        # ── 3. Verificar páginas institucionales ──────────────────────
+        slugs_existentes = {p.url for p in paginas_canvas}
+
+        verificacion_paginas = []
+        paginas_ok = 0
+
+        for slug, titulo in _PAGINAS_INSTITUCIONALES:
+            existe = slug in slugs_existentes
+            if existe:
+                paginas_ok += 1
+            verificacion_paginas.append({
+                "slug":   slug,
+                "titulo": titulo,
+                "existe": existe,
+            })
+
+        # ── 4. Verificar front del curso tiene contenido ──────────────
+        front_con_contenido = front_body_len >= _MIN_BODY_CHARS
+
+        # ── 5. Verificar actividades con PDFs vinculados ──────────────
+        actividades_con_pdf = sum(
+            1 for a in actividades
+            if a.get("description") and len(a["description"]) > 100
+        )
+        total_actividades = len(actividades)
+
+        # ── 6. Calcular semáforo de resultado ─────────────────────────
+        total_paginas    = len(_PAGINAS_INSTITUCIONALES)
+        pct_paginas      = round((paginas_ok / total_paginas) * 100, 1)
+        paginas_faltantes = total_paginas - paginas_ok
+
+        if paginas_faltantes == 0 and front_con_contenido:
+            resultado = "success"
+        elif paginas_faltantes <= 3:
+            resultado = "warning"
+        else:
+            resultado = "error"
+
+        reporte = {
+            "course_id":             course_id,
+            "course_name":           course_info.name,
+            "course_url":            course_info.url,
+            "resultado":             resultado,
+            "resumen": {
+                "paginas_ok":         paginas_ok,
+                "paginas_total":      total_paginas,
+                "porcentaje_paginas": pct_paginas,
+                "front_con_contenido": front_con_contenido,
+                "actividades_con_pdf": actividades_con_pdf,
+                "actividades_total":   total_actividades,
+            },
+            "paginas": verificacion_paginas,
+        }
+
+        logger.info(
+            "Verificación curso %d: %s — %d/%d páginas, front=%s",
+            course_id, resultado, paginas_ok, total_paginas,
+            front_con_contenido,
+        )
+
+        return JSONResponse(content=reporte)
+
+    except Exception as exc:
+        logger.error("Error en verificación curso %d: %s", course_id, exc)
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Error al verificar el curso: {str(exc)}"},
+        )
+    finally:
+        if http:
+            await http.__aexit__(None, None, None)

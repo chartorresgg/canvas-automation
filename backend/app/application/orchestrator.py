@@ -152,22 +152,51 @@ class DeploymentOrchestrator:
                 proc_result.total_changes,
             )
 
-            # ── Paso 3: Subir archivos a Canvas ───────────────────
+            # ── Paso 3: Subir archivos a Canvas ───────────────────────────
             paso_actual = 3
-            logger.info(
-                "[Paso 3] Subiendo %d archivos...", extraction.total_files
-            )
-            summary = await self._subir_archivos_con_eventos(
-                course_id=course_info.id,
-                content_path=zip_proc.content_path,
-                # El generador interno yieldeará los eventos de progreso
-                # pero no podemos yield desde aquí directamente.
-                # Ver: _subir_archivos_con_eventos devuelve summary,
-                # los eventos los emitimos con la queue approach.
-            )
+            logger.info("[Paso 3] Iniciando subida de archivos...")
 
-            # Emitir eventos de progreso de subida de forma agrupada
-            # (los eventos individuales por archivo se emiten via SSE en el router)
+            archivos = FileRepository._listar_archivos(zip_proc.content_path)
+            total_archivos = len(archivos)
+            summary = UploadSummary()
+
+            upload_queue: asyncio.Queue[ProgressEvent | None] = asyncio.Queue()
+            error_upload: list[Exception] = []
+
+            def on_progress_upload(actual: int, total: int, ruta: str) -> None:
+                upload_queue.put_nowait(
+                    ProgressEvent.subiendo_archivo(course_info.id, actual, total)
+                )
+
+            async def _run_upload() -> None:
+                try:
+                    result = await self._file_repo.upload_all(
+                        course_info.id,
+                        zip_proc.content_path,
+                        on_progress_upload,
+                    )
+                    # Copiar resultados al summary compartido
+                    summary.exitosos.update(result.exitosos)
+                    summary.fallidos.extend(result.fallidos)
+                except Exception as exc:
+                    error_upload.append(exc)
+                finally:
+                    upload_queue.put_nowait(None)  # sentinel siempre llega
+
+            upload_task = asyncio.create_task(_run_upload())
+
+            # Yield de cada evento de progreso de archivos al stream SSE
+            while True:
+                item = await upload_queue.get()
+                if item is None:
+                    break
+                yield item  # ← los eventos llegan al SSE en tiempo real
+
+            await upload_task
+
+            if error_upload:
+                raise error_upload[0]
+
             yield ProgressEvent.archivos_subidos(
                 course_info.id, summary.total_exitosos
             )
@@ -258,59 +287,6 @@ class DeploymentOrchestrator:
             return await self._course_repo.get_course(
                 config.course_id  # type: ignore[arg-type]
             )
-
-    async def _subir_archivos_con_eventos(
-            self,
-        course_id:    int,
-        content_path: Path,
-    ) -> UploadSummary:
-        """
-        Sube todos los archivos a Canvas emitiendo progreso por queue.
-
-        El sentinel None se envía en el bloque finally para garantizar
-        que el consumer de la queue siempre termina, incluso si upload_all
-        lanza una excepción.
-        """
-        queue: Queue[ProgressEvent | None] = Queue()
-        summary_container: list[UploadSummary] = []
-        error_container:   list[Exception]     = []
-
-        def on_progress(actual: int, total: int, ruta: str) -> None:
-            event = ProgressEvent.subiendo_archivo(course_id, actual, total)
-            queue.put_nowait(event)
-
-        async def _run_upload() -> None:
-            try:
-                summary = await self._file_repo.upload_all(
-                    course_id, content_path, on_progress
-                )
-                summary_container.append(summary)
-            except Exception as exc:
-                error_container.append(exc)
-            finally:
-                # Sentinel siempre se envía — garantiza que el consumer termina
-                queue.put_nowait(None)
-
-        task = asyncio.create_task(_run_upload())
-
-        while True:
-            item = await queue.get()
-            if item is None:
-                break
-
-        await task
-
-        # Propagar excepción de upload_all si la hubo
-        if error_container:
-            raise error_container[0]
-
-        if not summary_container:
-            raise RuntimeError(
-                "La tarea de subida no retornó resultado — "
-                "revisa los logs de FileRepository"
-            )
-
-        return summary_container[0]
 
     async def _crear_paginas_interactivas(
         self,
@@ -632,56 +608,82 @@ class DeploymentOrchestrator:
     ) -> dict:
         """
         Construye el contexto para MaterialFundamentalComposer.
-        Si guion_data está disponible, inyecta URLs de video, podcast y Vimeo.
+
+        Comparaciones siempre en minúsculas y con espacios normalizados
+        a guion bajo para ser resiliente a variaciones de casing en
+        Windows (filesystems case-insensitive) y nombres no normalizados.
         """
         lecturas:      list[dict] = []
         mat_fund_pdfs: list[dict] = []
         actividades:   list[dict] = []
 
-        prefijo = "2. Material fundamental/"
+        # Prefijo en minúsculas para comparación case-insensitive
+        prefijo_lower = "2. material fundamental/"
 
         for ruta, file_id in files_map.items():
-            if not ruta.startswith(prefijo):
-                continue
-            nombre = ruta[len(prefijo):]
-            if "/" in nombre:
-                continue
-            nombre_lower = nombre.lower()
-            if not nombre_lower.startswith(f"u{unidad}_"):
+            ruta_lower = ruta.lower().replace("\\", "/")
+
+            if not ruta_lower.startswith(prefijo_lower):
                 continue
 
-            if "lectura_fundamental" in nombre_lower:
+            # Extraer el nombre relativo dentro de la carpeta
+            nombre = ruta[len(prefijo_lower):]
+
+            # Ignorar archivos en subcarpetas SCORM
+            if "/" in nombre:
+                continue
+
+            # Normalizar para clasificación: minúsculas + espacios → guion bajo
+            nombre_norm = nombre.lower().replace(" ", "_")
+
+            # Filtrar por unidad
+            if not nombre_norm.startswith(f"u{unidad}_"):
+                continue
+
+            # Clasificar por tipo de PDF
+            if "lectura_fundamental" in nombre_norm:
                 seq = self._extraer_secuencia(nombre)
                 lecturas.append({"file_id": file_id, "secuencia": seq})
-            elif "material_fundamental" in nombre_lower:
+
+            elif "material_fundamental" in nombre_norm:
                 mat_fund_pdfs.append({"file_id": file_id})
-            elif "actividad_formativa" in nombre_lower:
+
+            elif "actividad_formativa" in nombre_norm:
                 actividades.append({"file_id": file_id, "tipo": "formativa"})
-            elif "actividad_sumativa" in nombre_lower:
+
+            elif "actividad_sumativa" in nombre_norm:
                 actividades.append({"file_id": file_id, "tipo": "sumativa"})
 
         lecturas.sort(key=lambda x: x["secuencia"])
 
+        # Páginas interactivas ya creadas para esta unidad
         paginas_interactivas: list[dict] = []
         for info in interactive_map.get(unidad, []):
-            # interactive_map ya viene con page_url calculado
-            # desde _crear_paginas_interactivas — usarlo directamente
             paginas_interactivas.append({
                 "page_url":     info["page_url"],
                 "numero":       info["numero"],
                 "es_enumerado": info.get("es_enumerado", False),
             })
 
-        # URLs multimedia del Guion Excel (si está disponible)
+        # URLs multimedia del Guion Excel
         video_intro_url: str | None = None
         podcast_url:     str | None = None
         vimeo_url:       str | None = None
 
         if guion_data:
-            unidad_guion = guion_data.unidad(unidad)
+            unidad_guion    = guion_data.unidad(unidad)
             video_intro_url = unidad_guion.video_intro_url
             podcast_url     = unidad_guion.podcast_url
             vimeo_url       = unidad_guion.vimeo_mat_fund_url
+
+        logger.debug(
+            "Ctx U%d → lecturas=%d, mat_fund=%d, actividades=%d, interactivos=%d",
+            unidad,
+            len(lecturas),
+            len(mat_fund_pdfs),
+            len(actividades),
+            len(paginas_interactivas),
+        )
 
         return {
             "unidad":               unidad,

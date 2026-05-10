@@ -4,6 +4,12 @@ Lector del archivo Excel de Guion de módulo.
 Extrae las URLs de recursos multimedia y los párrafos de texto
 que se inyectan en las páginas del aula virtual Canvas.
 
+Estructura del Excel (columnas 0-3):
+    col[0]: Etiqueta de sección  ("URL video inicial", "Unidad 1", "Cierre"...)
+    col[1]: Etiqueta de subsección ("Inicio", "Video introducción...", "Párrafo de cierre"...)
+    col[2]: Nombre/tipo de contenido (a menudo "No diligencie...\nU1_Lectura...")
+    col[3]: Valor real (URL directa o texto, según la fila)
+
 Capa: Dominio — services
 Colaboradores: FrontPageComposer, MaterialFundamentalComposer
                (a través del orquestador)
@@ -20,8 +26,14 @@ from openpyxl import load_workbook
 
 logger = logging.getLogger(__name__)
 
-# Nombre esperado de la hoja principal del Excel
 _NOMBRE_HOJA = "Guion de módulo"
+
+# Prefijos de instrucción que deben eliminarse del texto extraído
+_PREFIJOS_INSTRUCCION = [
+    "no diligencie nada en este espacio",
+    "solo diligencie el nombre del módulo",
+    "solo diligencie el nombre del modulo",
+]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -47,10 +59,10 @@ class GuionData:
     inyectarse en el front del curso y las páginas de Material
     Fundamental.
     """
-    video_inicial_url: str | None              = None
-    texto_inicio:      str                     = ""
-    texto_cierre:      str                     = ""
-    unidades:          dict[int, UnidadGuion]  = field(default_factory=dict)
+    video_inicial_url: str | None             = None
+    texto_inicio:      str                    = ""
+    texto_cierre:      str                    = ""
+    unidades:          dict[int, UnidadGuion] = field(default_factory=dict)
 
     def unidad(self, numero: int) -> UnidadGuion:
         """Retorna los datos de una unidad o un objeto vacío si no existe."""
@@ -68,9 +80,11 @@ class GuionExcelReader:
     Responsabilidad única (SRP): extraer datos del Excel de contenidos
     y exponerlos como GuionData para que los Composers los usen.
 
-    La estructura del Excel tiene labels en columnas A/B y valores
-    en columnas C/D. El lector busca palabras clave en cualquier celda
-    y extrae URLs y textos de las celdas adyacentes.
+    Estrategia de parsing por posición de columna:
+        col[0] → etiqueta de sección principal
+        col[1] → etiqueta de subsección
+        col[2] → nombre/tipo de contenido (a menudo instrucción + valor)
+        col[3] → valor real (URL directa, texto largo o URL embed)
 
     Colaboradores: ninguno (servicio de dominio puro).
     """
@@ -96,7 +110,6 @@ class GuionExcelReader:
 
         wb = load_workbook(str(self._path), read_only=True, data_only=True)
 
-        # Buscar la hoja por nombre exacto o usar la primera
         ws = None
         for nombre in wb.sheetnames:
             if _NOMBRE_HOJA.lower() in nombre.lower():
@@ -112,188 +125,216 @@ class GuionExcelReader:
         filas = self._leer_filas(ws)
         wb.close()
 
-        return self._parsear(filas)
+        datos = self._parsear(filas)
+
+        logger.info(
+            "Guion leído — video_inicial=%s | unidades=%s | cierre=%s",
+            bool(datos.video_inicial_url),
+            {u: {
+                "video_intro": bool(v.video_intro_url),
+                "podcast":     bool(v.podcast_url),
+                "vimeo":       bool(v.vimeo_mat_fund_url),
+                "parrafo":     bool(v.parrafo_intro),
+            } for u, v in datos.unidades.items()},
+            bool(datos.texto_cierre),
+        )
+        return datos
 
     # ──────────────────────────────────────────────────────────────
-    # Privados — lectura y parsing
+    # Privados — lectura
     # ──────────────────────────────────────────────────────────────
 
     @staticmethod
     def _leer_filas(ws) -> list[list[str]]:
         """
-        Convierte el worksheet a una lista de filas con strings limpios.
+        Convierte el worksheet en lista de filas con strings limpios.
         Ignora filas completamente vacías.
         """
         filas: list[list[str]] = []
         for fila in ws.iter_rows(values_only=True):
             celdas = [str(c).strip() if c is not None else "" for c in fila]
-            # Solo incluir filas que tienen al menos una celda no vacía
             if any(c for c in celdas):
                 filas.append(celdas)
         return filas
 
     def _parsear(self, filas: list[list[str]]) -> GuionData:
         """
-        Parsea todas las filas y construye el GuionData.
+        Parsea las filas del Excel usando la posición de columna como guía.
 
-        Estrategia: iterar las filas una vez buscando palabras clave
-        en cualquier celda para extraer los datos correspondientes.
+        Estrategia por sección:
+            · URL video inicial → col[0] == "URL video inicial" → URL en col[1]
+            · Texto inicio      → col[1] == "Inicio"            → texto en col[2]
+            · Unidad activa     → col[0] == "Unidad N"
+            · Video intro       → col[1] == "Video introducción..."  → URL en col[3]
+            · Párrafo intro     → col[1] == "Párrafo de introducción" → texto en col[2]
+            · Multimedia MF     → col[2] contiene "material_fundamental_1"
+                                   → URL en col[3] de esta fila O de la siguiente
+            · Párrafo cierre    → col[1] == "Párrafo de cierre"  → texto en col[2]
         """
         datos = GuionData()
         unidad_actual: int | None = None
 
         for idx, fila in enumerate(filas):
-            fila_texto = " ".join(fila).lower()
+            # Garantizar mínimo 4 columnas
+            while len(fila) < 4:
+                fila.append("")
 
-            # ── URL del video inicial ─────────────────────────────
-            if "url video inicial" in fila_texto:
-                url = self._extraer_url_de_fila(fila)
+            col0 = fila[0].strip()
+            col1 = fila[1].strip()
+            col2 = fila[2].strip()
+            col3 = fila[3].strip()
+
+            col0_l = col0.lower()
+            col1_l = col1.lower()
+            col2_l = col2.lower().replace(" ", "_")
+
+            # ── 1. URL del video inicial ──────────────────────────
+            if col0_l == "url video inicial":
+                url = self._extraer_url(col1)
                 if url:
                     datos.video_inicial_url = url
                     logger.info("Video inicial: %s", url)
 
-            # ── Texto de inicio / bienvenida ──────────────────────
-            if self._celda_exacta("inicio", fila) and not datos.texto_inicio:
-                texto = self._extraer_texto_largo(fila, excluir_url=True)
+            # ── 2. Texto de inicio ────────────────────────────────
+            if col1_l == "inicio" and not datos.texto_inicio:
+                texto = self._limpiar_texto(col2)
                 if texto:
                     datos.texto_inicio = texto
+                    logger.info("Texto inicio: %s chars", len(texto))
 
-            # ── Número de unidad activo ───────────────────────────
             for u in range(1, 5):
-                col_a = fila[0].lower() if fila else ""
-                if (f"unidad {u}" in col_a or
-                        f"título de la unidad {u}" in col_a):
+                if f"unidad {u}" in col0_l:
                     unidad_actual = u
                     if u not in datos.unidades:
                         datos.unidades[u] = UnidadGuion(numero=u)
+                    break
 
-            # ── Datos por unidad ──────────────────────────────────
+            # ── 4. Datos por unidad (solo si hay unidad activa) ───
             if unidad_actual is not None:
-                unidad = datos.unidades[unidad_actual]
+                unidad = datos.unidades.setdefault(
+                    unidad_actual, UnidadGuion(numero=unidad_actual)
+                )
 
-                # Video de introducción de la unidad
-                if ("video introducción" in fila_texto or
-                        "video introduccion" in fila_texto):
-                    url = self._extraer_url_de_fila(fila)
+                # Video de introducción — URL está en col[3]
+                if ("video introducción" in col1_l or
+                        "video introduccion" in col1_l):
+                    url = self._extraer_url(col3)
                     if url and unidad.video_intro_url is None:
                         unidad.video_intro_url = url
-                        logger.info(
-                            "Video intro U%d: %s", unidad_actual, url
-                        )
+                        logger.info("U%d video_intro: %s", unidad_actual, url)
 
-                # Párrafo de introducción de la unidad
-                if ("párrafo de introducción" in fila_texto or
-                        "parrafo de introduccion" in fila_texto):
-                    texto = self._extraer_texto_largo(fila, excluir_url=True)
+                # Párrafo de introducción — texto en col[2]
+                if ("párrafo de introducción" in col1_l or
+                        "parrafo de introduccion" in col1_l):
+                    texto = self._limpiar_texto(col2)
                     if texto and not unidad.parrafo_intro:
                         unidad.parrafo_intro = texto
+                        logger.info(
+                            "U%d parrafo_intro: %s chars",
+                            unidad_actual, len(texto),
+                        )
 
-                # Material fundamental multimedia (video/podcast)
-                if "material_fundamental_1" in fila_texto.replace(" ", "_"):
-                    # Buscar URL en la misma fila
-                    url = self._extraer_url_de_fila(fila)
+                # Material fundamental multimedia
+                # La etiqueta "material_fundamental_1" aparece en col[2]
+                # La URL puede estar en col[3] de esta fila o de la siguiente
+                if "material_fundamental_1" in col2_l:
+                    url = self._extraer_url(col3)
                     if url:
-                        self._clasificar_url_multimedia(url, unidad)
-                    else:
-                        # Buscar en la siguiente fila (SoundCloud suele ir separado)
-                        if idx + 1 < len(filas):
-                            url_siguiente = self._extraer_url_de_fila(filas[idx + 1])
-                            if url_siguiente:
-                                self._clasificar_url_multimedia(url_siguiente, unidad)
+                        self._asignar_multimedia(url, unidad)
+                    elif idx + 1 < len(filas):
+                        sig = filas[idx + 1]
+                        url_sig = self._extraer_url(
+                            sig[3] if len(sig) > 3 else ""
+                        )
+                        if url_sig:
+                            self._asignar_multimedia(url_sig, unidad)
 
-            # ── Párrafo de cierre ─────────────────────────────────
-            if "párrafo de cierre" in fila_texto or "parrafo de cierre" in fila_texto:
-                texto = self._extraer_texto_largo(fila, excluir_url=True)
+            # ── 5. Párrafo de cierre ──────────────────────────────
+            if ("párrafo de cierre" in col1_l or
+                    "parrafo de cierre" in col1_l):
+                texto = self._limpiar_texto(col2)
                 if texto and not datos.texto_cierre:
                     datos.texto_cierre = texto
+                    logger.info("Texto cierre: %s chars", len(texto))
 
-        logger.info(
-            "Guion leído: video_inicial=%s, unidades=%s",
-            bool(datos.video_inicial_url),
-            list(datos.unidades.keys()),
-        )
         return datos
 
     # ──────────────────────────────────────────────────────────────
-    # Privados — utilidades de extracción
+    # Privados — utilidades
     # ──────────────────────────────────────────────────────────────
 
     @staticmethod
     def _extraer_url(texto: str) -> str | None:
         """
         Extrae la primera URL HTTP/HTTPS de un texto.
-        Limpia prefijos como 'Enlace de vimeo:' o 'No diligencie...'.
+        Elimina URLs de Shutterstock (son imágenes de referencia, no recursos).
 
         Returns:
-            URL limpia o None si no se encuentra.
+            URL limpia o None si no se encuentra o es de Shutterstock.
         """
         if not texto:
             return None
         match = re.search(r"https?://\S+", texto)
-        if match:
-            url = match.group(0).rstrip(".,;)")
-            # Ignorar URLs de Shutterstock (son imágenes de referencia)
-            if "shutterstock" in url.lower():
-                return None
-            return url
-        return None
-
-    def _extraer_url_de_fila(self, fila: list[str]) -> str | None:
-        """Busca la primera URL válida en cualquier celda de la fila."""
-        for celda in fila:
-            url = self._extraer_url(celda)
-            if url:
-                return url
-        return None
+        if not match:
+            return None
+        url = match.group(0).rstrip(".,;)")
+        if "shutterstock" in url.lower():
+            return None
+        return url
 
     @staticmethod
-    def _extraer_texto_largo(
-        fila: list[str],
-        excluir_url: bool = True,
-        min_chars: int = 40,
-    ) -> str:
+    def _limpiar_texto(texto: str, min_chars: int = 30) -> str:
         """
-        Extrae el primer texto largo de la fila que no sea una instrucción.
+        Limpia un texto de celda extrayendo solo el contenido real.
 
-        Descarta:
-            - Celdas de menos de min_chars caracteres
-            - Celdas que contienen 'No diligencie'
-            - URLs (si excluir_url=True)
-            - Celdas que son solo nombres de archivo (U1_Lectura...)
+        Elimina prefijos de instrucción institucionales como:
+            "No diligencie nada en este espacio"
+            "Solo diligencie el nombre del módulo"
+        que siempre preceden al contenido real separados por \\n.
+
+        Args:
+            texto:     Contenido de la celda.
+            min_chars: Longitud mínima del resultado para ser válido.
 
         Returns:
-            Texto limpio o cadena vacía si no se encuentra.
+            Texto limpio o cadena vacía si no hay contenido válido.
         """
-        for celda in fila:
-            if len(celda) < min_chars:
+        if not texto:
+            return ""
+
+        # Separar por saltos de línea y filtrar líneas de instrucción
+        lineas = texto.split("\n")
+        lineas_validas = []
+
+        for linea in lineas:
+            linea = linea.strip()
+            if not linea:
                 continue
-            if "no diligencie" in celda.lower():
-                continue
-            if excluir_url and re.search(r"https?://", celda):
-                continue
-            if re.match(r"^U\d+_", celda):
-                continue
-            return celda
-        return ""
+            linea_lower = linea.lower()
+            es_instruccion = any(
+                pref in linea_lower for pref in _PREFIJOS_INSTRUCCION
+            )
+            if not es_instruccion:
+                lineas_validas.append(linea)
+
+        resultado = " ".join(lineas_validas).strip()
+        return resultado if len(resultado) >= min_chars else ""
 
     @staticmethod
-    def _celda_exacta(valor: str, fila: list[str]) -> bool:
-        """
-        Verifica si alguna celda de la fila contiene exactamente el valor
-        (ignorando mayúsculas y espacios extra).
-        """
-        return any(c.strip().lower() == valor.lower() for c in fila if c)
-
-    @staticmethod
-    def _clasificar_url_multimedia(url: str, unidad: UnidadGuion) -> None:
+    def _asignar_multimedia(url: str, unidad: UnidadGuion) -> None:
         """
         Clasifica una URL como podcast (SoundCloud) o video (Vimeo)
         y la asigna al campo correspondiente de la unidad.
+
+        Ignora URLs vacías o de N/A.
         """
+        if not url or url.strip().upper() in ("N/A", "NA", ""):
+            return
+
         url_lower = url.lower()
         if "soundcloud" in url_lower:
             unidad.podcast_url = url
-            logger.info("Podcast U%d: %s", unidad.numero, url[:60])
+            logger.info("U%d podcast: %s", unidad.numero, url[:70])
         elif "vimeo" in url_lower or "player" in url_lower:
             unidad.vimeo_mat_fund_url = url
-            logger.info("Vimeo mat.fund U%d: %s", unidad.numero, url[:60])
+            logger.info("U%d vimeo_mat_fund: %s", unidad.numero, url[:70])

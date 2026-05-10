@@ -1,0 +1,181 @@
+Folder PATH listing for volume OS
+Volume serial number is 268F-4CE1
+backend
+|
+|               
++---app
+|   |   main.py
+|   |   __init__.py
+|   |   
+|   +---api
+|   |   \---v1
+|   |       \---endpoints
+|   +---application
+|   |   |   orchestrator.py
+|   |   |   __init__.py
+|   |   |   
+|   |   \---__pycache__
+|   |           orchestrator.cpython-311.pyc
+|   |           orchestrator.cpython-313.pyc
+|   |           __init__.cpython-311.pyc
+|   |           __init__.cpython-313.pyc
+|   |           
+|   +---core
+|   +---domain
+|   |   |   __init__.py
+|   |   |   
+|   |   +---interfaces
+|   |   |   |   i_page_composer.py
+|   |   |   |   __init__.py
+|   |   |   |   
+|   |   |   \---__pycache__
+|   |   |           i_page_composer.cpython-311.pyc
+|   |   |           __init__.cpython-311.pyc
+|   |   |           
+|   |   +---models
+|   |   +---services
+|   |   |   |   file_normalizer.py
+|   |   |   |   guion_excel_reader.py
+|   |   |   |   interactive_content_detector.py
+|   |   |   |   zip_processor.py
+|   |   |   |   __init__.py
+|   |   |   |   
+|   |   |   \---__pycache__
+|   |   |           file_normalizer.cpython-311.pyc
+|   |   |           file_normalizer.cpython-313.pyc
+|   |   |           guion_excel_reader.cpython-311.pyc
+|   |   |           interactive_content_detector.cpython-311.pyc
+|   |   |           interactive_content_detector.cpython-313.pyc
+|   |   |           zip_processor.cpython-311.pyc
+|   |   |           zip_processor.cpython-313.pyc
+|   |   |           __init__.cpython-311.pyc
+|   |   |           __init__.cpython-313.pyc
+|   |   |           
+|   |   +---value_objects
+|   |   |   |   deployment_config.py
+|   |   |   |   progress_event.py
+|   |   |   |   __init__.py
+|   |   |   |   
+|   |   |   \---__pycache__
+|   |   |           deployment_config.cpython-311.pyc
+|   |   |           deployment_config.cpython-313.pyc
+|   |   |           progress_event.cpython-311.pyc
+|   |   |           __init__.cpython-311.pyc
+|   |   |           __init__.cpython-313.pyc
+|   |   |           
+|   |   \---__pycache__
+|   |           __init__.cpython-311.pyc
+|   |           __init__.cpython-313.pyc
+|   |           
+|   +---infrastructure
+|   |   |   __init__.py
+|   |   |   
+|   |   +---canvas
+|   |   |   |   course_repository.py
+|   |   |   |   file_repository.py
+|   |   |   |   http_client.py
+|   |   |   |   page_repository.py
+|   |   |   |   __init__.py
+|   |   |   |   
+|   |   |   \---__pycache__
+|   |   |           course_repository.cpython-311.pyc
+|   |   |           file_repository.cpython-311.pyc
+|   |   |           http_client.cpython-311.pyc
+|   |   |           page_repository.cpython-311.pyc
+|   |   |           __init__.cpython-311.pyc
+|   |   |           
+|   |   +---composers
+|   |   |   |   complementary_page_composer.py
+|   |   |   |   front_page_composer.py
+|   |   |   |   iframe_composer.py
+|   |   |   |   material_de_trabajo_composer.py
+|   |   |   |   material_fundamental_composer.py
+|   |   |   |   page_composer_factory.py
+|   |   |   |   __init__.py
+|   |   |   |   
+|   |   |   \---__pycache__
+|   |   |           complementary_page_composer.cpython-311.pyc
+|   |   |           front_page_composer.cpython-311.pyc
+|   |   |           iframe_composer.cpython-311.pyc
+|   |   |           material_de_trabajo_composer.cpython-311.pyc
+|   |   |           material_fundamental_composer.cpython-311.pyc
+|   |   |           page_composer_factory.cpython-311.pyc
+|   |   |           __init__.cpython-311.pyc
+|   |   |           
+|   |   +---persistence
+|   |   |       __init__.py
+|   |   |       
+|   |   +---storage
+|   |   \---__pycache__
+|   |           __init__.cpython-311.pyc
+|   |           
+|   +---presentation
+|   |   |   dependencies.py
+|   |   |   schemas.py
+|   |   |   task_manager.py
+|   |   |   __init__.py
+|   |   |   
+|   |   +---routers
+|   |   |   |   deploy.py
+|   |   |   |   health.py
+|   |   |   |   __init__.py
+|   |   |   |   
+|   |   |   \---__pycache__
+|   |   |           deploy.cpython-311.pyc
+|   |   |           health.cpython-311.pyc
+|   |   |           __init__.cpython-311.pyc
+|   |   |           
+|   |   \---__pycache__
+|   |           dependencies.cpython-311.pyc
+|   |           schemas.cpython-311.pyc
+|   |           task_manager.cpython-311.pyc
+|   |           __init__.cpython-311.pyc
+|   |           
+|   \---__pycache__
+|           main.cpython-311.pyc
+|           __init__.cpython-311.pyc
+|           __init__.cpython-313.pyc
+|           
++---tests
+|   |   __init__.py
+|   |   
+|   +---integration
+|   |       __init__.py
+|   |       
+|   +---unit
+|   |   |   test_canvas_http_client.py
+|   |   |   test_composers.py
+|   |   |   test_course_repository.py
+|   |   |   test_deploy_router.py
+|   |   |   test_file_normalizer.py
+|   |   |   test_file_repository.py
+|   |   |   test_orchestrator.py
+|   |   |   test_page_repository.py
+|   |   |   test_value_objects.py
+|   |   |   test_zip_processor.py
+|   |   |   __init__.py
+|   |   |   
+|   |   \---__pycache__
+|   |           test_canvas_http_client. cpython-311-pytest-9.0.3.pyc
+|   |           test_composers.cpython-311-pytest-9.0.3.pyc
+|   |           test_course_repository.cpython-311-pytest-9.0.3.pyc
+|   |           test_deploy_router.cpython-311-pytest-9.0.3.pyc
+|   |           test_file_normalizer.cpython-311-pytest-9.0.3.pyc
+|   |           test_file_normalizer.cpython-313-pytest-9.0.3.pyc
+|   |           test_file_repository.cpython-311-pytest-9.0.3.pyc
+|   |           test_orchestrator.cpython-311-pytest-9.0.3.pyc
+|   |           test_orchestrator.cpython-313-pytest-9.0.3.pyc
+|   |           test_page_repository.cpython-311-pytest-9.0.3.pyc
+|   |           test_value_objects.cpython-311-pytest-9.0.3.pyc
+|   |           test_value_objects.cpython-313-pytest-9.0.3.pyc
+|   |           test_zip_processor.cpython-311-pytest-9.0.3.pyc
+|   |           test_zip_processor.cpython-313-pytest-9.0.3.pyc
+|   |           __init__.cpython-311.pyc
+|   |           __init__.cpython-313.pyc
+|   |           
+|   \---__pycache__
+|           __init__.cpython-311.pyc
+|           __init__.cpython-313.pyc
+|           
+|           
+\---venv

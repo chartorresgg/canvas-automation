@@ -133,8 +133,10 @@ export interface UploadResult {
 }
 
 export interface TemplateSelection {
-  plantillaId: number
+  plantillaId:     number
   plantillaNombre: string
+  disenoInstruccional: string
+  nivelFormacion:  string
 }
 
 export interface CourseMetadata {
@@ -145,6 +147,7 @@ export interface CourseMetadata {
 
 export interface DeployWizardState {
   step: DeployStep
+  uploadedFiles: UploadedFiles | null
   uploadResult: UploadResult | null
   templateSelection: TemplateSelection | null
   courseMetadata: CourseMetadata | null

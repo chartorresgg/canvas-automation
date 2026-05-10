@@ -72,8 +72,10 @@ export function TemplateSelector({ onSelect }: TemplateSelectorProps) {
     if (!plantillaResultante) return
     setPlantillaFinal(plantillaResultante)
     onSelect({
-      plantillaId:     plantillaResultante.id,
-      plantillaNombre: plantillaResultante.nombre,
+      plantillaId:          plantillaResultante.id,
+      plantillaNombre:      plantillaResultante.nombre,
+      disenoInstruccional:  plantillaResultante.disenoInstruccional,  // ← agregar
+      nivelFormacion:       plantillaResultante.nivelFormacion, 
     })
   }
 
