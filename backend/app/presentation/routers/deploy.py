@@ -346,17 +346,20 @@ async def _ejecutar_deploy_background(
     config:  DeploymentConfig,
     queue:   asyncio.Queue,
 ) -> None:
-    """
-    Función que corre como BackgroundTask de FastAPI.
+    """BackgroundTask con registro de auditoría al finalizar."""
+    from app.presentation.dependencies import audit_repository
+    from app.domain.value_objects.audit_entry import AuditEntry
+    from datetime import datetime, timezone
 
-    Registra el asyncio.Task actual en TaskManager para permitir
-    cancelación externa vía task.cancel(). Maneja CancelledError
-    para emitir el evento de cancelación antes de limpiar.
-    """
-    http = None
-    paso_actual = 0  # rastrea el paso para el evento de cancelación
+    http          = None
+    paso_actual   = 0
+    course_id_final: int | None = None
+    course_name_final: str = getattr(config, "course_name", "") or ""
+    archivos_subidos_final: int = 0
+    estado_final: str = "failed"
+    error_final:  str | None = None
+    iniciado_en   = datetime.now(timezone.utc)
 
-    # Registrar el asyncio.Task actual para permitir task.cancel() externo
     tarea_asyncio = asyncio.current_task()
     if tarea_asyncio:
         task_manager.registrar_asyncio_task(task_id, tarea_asyncio)
@@ -367,39 +370,69 @@ async def _ejecutar_deploy_background(
         async for event in orchestrator.deploy(config):
             queue.put_nowait(event)
             paso_actual = event.step
-            logger.debug(
-                "Task %s — evento: step=%d pct=%.1f status=%s",
-                task_id, event.step, event.percentage, event.status,
-            )
+
+            # Capturar datos para auditoría conforme llegan
+            if event.course_id:
+                course_id_final = event.course_id
+            if event.detail and "subido" in (event.detail or ""):
+                try:
+                    archivos_subidos_final = int(
+                        event.detail.split()[0]
+                    )
+                except (ValueError, IndexError):
+                    pass
+
             if event.is_terminal:
+                estado_final = event.status.value if hasattr(event.status, "value") else str(event.status)
                 break
 
     except asyncio.CancelledError:
-        # El analista canceló el proceso desde el frontend
-        logger.info(
-            "Tarea %s cancelada por el usuario (paso %d)",
-            task_id, paso_actual,
-        )
-        evento_cancelado = ProgressEvent.cancelado(step=paso_actual)
-        queue.put_nowait(evento_cancelado)
-        # No re-raise: dejamos que finally limpie correctamente
+        logger.info("Tarea %s cancelada (paso %d)", task_id, paso_actual)
+        estado_final = "cancelled"
+        queue.put_nowait(ProgressEvent.cancelado(step=paso_actual))
 
     except Exception as exc:
-        logger.error(
-            "Error en BackgroundTask %s: %s", task_id, exc, exc_info=True
+        logger.error("Error BackgroundTask %s: %s", task_id, exc, exc_info=True)
+        estado_final = "failed"
+        error_final  = str(exc)
+        queue.put_nowait(
+            ProgressEvent.fallido(
+                step=paso_actual,
+                message="Error interno del servidor",
+                error=str(exc),
+            )
         )
-        evento_fallo = ProgressEvent.fallido(
-            step=paso_actual,
-            message="Error interno del servidor",
-            error=str(exc),
-        )
-        queue.put_nowait(evento_fallo)
 
     finally:
+        finalizado_en = datetime.now(timezone.utc)
+        duracion = (finalizado_en - iniciado_en).total_seconds()
+
+        # Registrar en auditoría
+        try:
+            entry = AuditEntry(
+                task_id=          task_id,
+                course_id=        course_id_final,
+                course_name=      course_name_final,
+                template_id=      getattr(config, "template_id", None),
+                zip_filename=     config.zip_path.name,
+                total_archivos=   archivos_subidos_final,
+                archivos_subidos= archivos_subidos_final,
+                duracion_seg=     duracion,
+                estado=           estado_final,
+                error_detalle=    error_final,
+                iniciado_en=      iniciado_en,
+                finalizado_en=    finalizado_en,
+                modelo_instruccional= getattr(config, "modelo_instruccional", ""),
+                nivel_formacion=      getattr(config, "nivel_formacion", ""),
+            )
+            await audit_repository.guardar(entry)
+        except Exception as audit_exc:
+            logger.error("Error guardando auditoría: %s", audit_exc)
+
         task_manager.marcar_completada(task_id)
         if http:
             await http.__aexit__(None, None, None)
-        logger.info("BackgroundTask %s finalizado", task_id)
+        logger.info("BackgroundTask %s finalizado en %.1fs", task_id, duracion)
 
 
 async def _generar_stream_sse(

@@ -207,3 +207,99 @@ export async function verifyDeploy(
   )
   return response.data
 }
+
+// ── Tipos de auditoría ───────────────────────────────────────────────────────
+
+export interface AuditEntryData {
+  task_id:              string
+  course_id:            number | null
+  course_name:          string
+  template_id:          number | null
+  zip_filename:         string
+  total_archivos:       number
+  archivos_subidos:     number
+  duracion_seg:         number
+  duracion_display:     string
+  estado:               "completed" | "failed" | "cancelled"
+  estado_display:       string
+  error_detalle:        string | null
+  iniciado_en:          string
+  finalizado_en:        string
+  modelo_instruccional: string
+  nivel_formacion:      string
+}
+
+export interface AuditListResponse {
+  total:    number
+  limite:   number
+  offset:   number
+  entradas: AuditEntryData[]
+}
+
+/**
+ * Obtiene el historial paginado de despliegues.
+ */
+export async function getAuditHistory(params?: {
+  limite?: number
+  offset?: number
+  estado?: string
+}): Promise<AuditListResponse> {
+  const response = await apiClient.get<AuditListResponse>("/audit", {
+    params,
+  })
+  return response.data
+}
+
+/**
+ * Descarga el historial completo como archivo Excel.
+ */
+export function downloadAuditExcel(): void {
+  window.open(
+    `${apiClient.defaults.baseURL}/audit/export`,
+    "_blank"
+  )
+}
+
+// ── Tipos de benchmark ───────────────────────────────────────────────────────
+
+export interface EtapaBenchmark {
+  nombre:           string
+  duracion_ms:      number
+  duracion_display: string
+  detalle:          string
+  exitosa:          boolean
+  error:            string | null
+}
+
+export interface BenchmarkReport {
+  zip_filename:                 string
+  total_archivos:               number
+  total_size_mb:                number
+  scorm_detectados:             number
+  carpetas_normalizadas:        number
+  pdfs_normalizados:            number
+  con_excel:                    boolean
+  total_procesamiento_ms:       number
+  total_procesamiento_display:  string
+  etapas:                       EtapaBenchmark[]
+}
+
+/**
+ * Ejecuta el benchmark de procesamiento local.
+ * No llama a Canvas — mide solo el pipeline local.
+ */
+export async function runBenchmark(
+  zipFile:    File,
+  excelFile?: File,
+): Promise<BenchmarkReport> {
+  const formData = new FormData()
+  formData.append("zip_file", zipFile)
+  if (excelFile) formData.append("excel_file", excelFile)
+
+  const response = await apiClient.post<BenchmarkReport>(
+    "/benchmark",
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  )
+  return response.data
+}

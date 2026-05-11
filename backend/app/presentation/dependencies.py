@@ -15,6 +15,10 @@ from pathlib import Path
 from app.domain.services.interactive_content_detector import (
     InteractiveContentDetector,
 )
+from app.infrastructure.persistence.sqlite_audit_repository import (
+    SQLiteAuditRepository,
+)
+from app.domain.interfaces.i_audit_repository import IAuditRepository
 from app.infrastructure.canvas.course_repository import CourseRepository
 from app.infrastructure.canvas.file_repository import FileRepository
 from app.infrastructure.canvas.http_client import CanvasHttpClient
@@ -75,3 +79,25 @@ async def crear_orchestrator_context(
     )
 
     return http, orchestrator
+
+# Ruta del archivo SQLite — configurable por variable de entorno
+# para facilitar migración a nube con disco persistente
+_DB_PATH = Path(
+    os.getenv("AUDIT_DB_PATH", str(Path(__file__).parent.parent.parent / "data" / "audit_log.db"))
+)
+
+
+def get_audit_repository() -> IAuditRepository:
+    """
+    Retorna la implementación activa del repositorio de auditoría.
+
+    Para migrar a PostgreSQL:
+        1. Crear PostgresAuditRepository(IAuditRepository)
+        2. Retornar esa instancia aquí
+        3. Sin más cambios en el sistema
+    """
+    return SQLiteAuditRepository(_DB_PATH)
+
+
+# Instancia singleton — un solo repositorio por proceso
+audit_repository: IAuditRepository = get_audit_repository()
