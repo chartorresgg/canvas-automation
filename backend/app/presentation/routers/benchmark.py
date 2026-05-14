@@ -34,8 +34,8 @@ from app.domain.services.zip_processor import ZipProcessor
 from app.infrastructure.canvas.file_repository import FileRepository
 from app.presentation.dependencies import TMP_DIR
 
-router  = APIRouter()
-logger  = logging.getLogger(__name__)
+router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -53,12 +53,12 @@ class EtapaBenchmark:
 
     def to_dict(self) -> dict:
         return {
-            "nombre":      self.nombre,
-            "duracion_ms": round(self.duracion_ms, 2),
+            "nombre":           self.nombre,
+            "duracion_ms":      round(self.duracion_ms, 2),
             "duracion_display": _ms_a_display(self.duracion_ms),
-            "detalle":     self.detalle,
-            "exitosa":     self.exitosa,
-            "error":       self.error,
+            "detalle":          self.detalle,
+            "exitosa":          self.exitosa,
+            "error":            self.error,
         }
 
 
@@ -84,16 +84,16 @@ class BenchmarkReport:
 
     def to_dict(self) -> dict:
         return {
-            "zip_filename":          self.zip_filename,
-            "total_archivos":        self.total_archivos,
-            "total_size_mb":         self.total_size_mb,
-            "scorm_detectados":      self.scorm_detectados,
-            "carpetas_normalizadas": self.carpetas_normalizadas,
-            "pdfs_normalizados":     self.pdfs_normalizados,
-            "con_excel":             self.con_excel,
+            "zip_filename":                self.zip_filename,
+            "total_archivos":              self.total_archivos,
+            "total_size_mb":               self.total_size_mb,
+            "scorm_detectados":            self.scorm_detectados,
+            "carpetas_normalizadas":       self.carpetas_normalizadas,
+            "pdfs_normalizados":           self.pdfs_normalizados,
+            "con_excel":                   self.con_excel,
             "total_procesamiento_ms":      round(self.total_procesamiento_ms, 2),
             "total_procesamiento_display": self.total_procesamiento_display,
-            "etapas": [e.to_dict() for e in self.etapas],
+            "etapas":                      [e.to_dict() for e in self.etapas],
         }
 
 
@@ -151,8 +151,8 @@ async def ejecutar_benchmark(
     work_dir = TMP_DIR / f"benchmark_{run_id}"
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    zip_path:   Path       = work_dir / (zip_file.filename or "curso.zip")
-    excel_path: Path | None = None
+    zip_path:    Path       = work_dir / (zip_file.filename or "curso.zip")
+    excel_path:  Path | None = None
 
     try:
         # Guardar archivos en disco
@@ -240,11 +240,13 @@ async def ejecutar_benchmark(
         # ── Etapa 3: Detección SCORM ──────────────────────────────────────
         t0 = time.perf_counter()
         try:
-            # Construir file_map local (sin file_ids reales — solo rutas)
             archivos_locales = FileRepository._listar_archivos(
                 zip_proc.content_path
             )
-            file_map_local = {ruta: idx for idx, (_, ruta) in enumerate(archivos_locales)}
+            file_map_local = {
+                ruta: idx
+                for idx, (_, ruta) in enumerate(archivos_locales)
+            }
 
             detector  = InteractiveContentDetector()
             scorm_map = detector.detect(file_map_local)
@@ -253,17 +255,16 @@ async def ejecutar_benchmark(
             total_scorm = sum(len(v) for v in scorm_map.values())
             reporte.scorm_detectados = total_scorm
 
-            detalle_scorm = (
-                f"{total_scorm} paquete(s) Storyline detectado(s)"
-                if total_scorm > 0
-                else "Sin contenido SCORM"
-            )
             if total_scorm > 0:
                 unidades_str = ", ".join(
                     f"U{u}: {len(v)} paquete(s)"
                     for u, v in sorted(scorm_map.items())
                 )
-                detalle_scorm += f" → {unidades_str}"
+                detalle_scorm = (
+                    f"{total_scorm} paquete(s) Storyline detectado(s) → {unidades_str}"
+                )
+            else:
+                detalle_scorm = "Sin contenido SCORM"
 
             reporte.etapas.append(EtapaBenchmark(
                 nombre="Detección SCORM",
@@ -289,17 +290,14 @@ async def ejecutar_benchmark(
                 guion = GuionExcelReader(excel_path).read()
                 duracion_excel = (time.perf_counter() - t0) * 1000
 
-                unidades_con_video = sum(
-                    1 for u in guion.unidades.values()
-                    if u.video_intro_url
+                unidades_con_video   = sum(
+                    1 for u in guion.unidades.values() if u.video_intro_url
                 )
                 unidades_con_podcast = sum(
-                    1 for u in guion.unidades.values()
-                    if u.podcast_url
+                    1 for u in guion.unidades.values() if u.podcast_url
                 )
-                unidades_con_vimeo = sum(
-                    1 for u in guion.unidades.values()
-                    if u.vimeo_mat_fund_url
+                unidades_con_vimeo   = sum(
+                    1 for u in guion.unidades.values() if u.vimeo_mat_fund_url
                 )
 
                 reporte.etapas.append(EtapaBenchmark(
