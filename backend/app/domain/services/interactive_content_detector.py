@@ -24,6 +24,8 @@ _PATRONES_CARPETA = [
     re.compile(r"U(\d+)_MF(\d+)$",                             re.IGNORECASE),  # U3_MF3
     re.compile(r"U(\d+)_MF$",                                  re.IGNORECASE),  # U3_MF
     re.compile(r"U(\d+)_MF(?:_(\d+))?$",                         re.IGNORECASE),
+    re.compile(r"U(\d+)_MF\s(\d+)$",                             re.IGNORECASE),  # ← U1_MF 1 (espacio)
+
 ]
 
 class InteractiveContentDetector:
@@ -163,3 +165,88 @@ class InteractiveContentDetector:
                     return (unidad, int(numero_raw), True)
                 return (unidad, 1, False)
         return None
+
+    def detect_material_trabajo(
+        self, files_map: dict[str, int]
+    ) -> list[dict]:
+        """
+        Detecta paquetes Storyline en la carpeta "3. Material de trabajo/".
+
+        Escanea CUALQUIER subcarpeta que contenga story.html o index.html,
+        sin requerir convención específica de nombres.
+
+        Args:
+            files_map: Mapa {ruta_relativa: file_id} de FileRepository.
+
+        Returns:
+            Lista de dicts ordenada por nombre de carpeta:
+            [{numero, file_id, carpeta, ruta_completa, unidad}]
+            'unidad' es None si no se puede determinar del nombre de la carpeta.
+        """
+        import re as _re
+
+        prefijo_lower = "3. material de trabajo/"
+
+        # Mejor candidato por carpeta: story.html > index.html
+        mejores: dict[str, dict] = {}
+
+        for ruta, file_id in files_map.items():
+            ruta_lower = ruta.lower().replace("\\", "/")
+
+            if not ruta_lower.startswith(prefijo_lower):
+                continue
+
+            nombre_archivo = ruta_lower.split("/")[-1]
+            if nombre_archivo not in ("story.html", "index.html"):
+                continue
+
+            partes = ruta.split("/")
+            # Necesitamos: carpeta_raiz / subcarpeta_scorm / archivo
+            if len(partes) < 3:
+                continue
+
+            carpeta = partes[1]
+            clave   = carpeta.lower()
+
+            es_story = nombre_archivo == "story.html"
+            if clave in mejores and mejores[clave]["es_story"] and not es_story:
+                continue
+
+            mejores[clave] = {
+                "carpeta":  carpeta,
+                "file_id":  file_id,
+                "es_story": es_story,
+                "ruta":     ruta,
+            }
+
+        # Construir resultado ordenado por nombre de carpeta
+        resultado: list[dict] = []
+        for numero, (_, info) in enumerate(
+            sorted(mejores.items()), start=1
+        ):
+            carpeta = info["carpeta"]
+
+            # Intentar detectar unidad del nombre de la carpeta
+            unidad: int | None = None
+            m = _re.search(r"u(\d)", carpeta, _re.IGNORECASE)
+            if m:
+                unidad = int(m.group(1))
+
+            resultado.append({
+                "numero":        numero,
+                "file_id":       info["file_id"],
+                "carpeta":       carpeta,
+                "ruta_completa": info["ruta"],
+                "unidad":        unidad,
+            })
+
+            logger.info(
+                "SCORM Material de trabajo detectado: carpeta='%s', "
+                "numero=%d, unidad=%s, file_id=%d",
+                carpeta, numero, unidad, info["file_id"],
+            )
+
+        logger.info(
+            "Total SCORM en Material de trabajo: %d", len(resultado)
+        )
+        return resultado

@@ -344,6 +344,67 @@ class DeploymentOrchestrator:
 
         return paginas_creadas
     
+    async def _crear_paginas_material_trabajo_interactivo(
+        self,
+        course_id: int,
+        storylines_mt: list[dict],
+    ) -> list[dict]:
+        """
+        Crea una página Canvas por cada Storyline en Material de trabajo.
+
+        Slug: material-de-trabajo-interactivo-{numero}
+        Título: "Unidad N - Material de Trabajo - Interactivo N"
+                o "Material de Trabajo - Interactivo N" si no hay unidad.
+
+        Args:
+            course_id:     ID del curso Canvas.
+            storylines_mt: Lista retornada por detect_material_trabajo().
+
+        Returns:
+            Lista enriquecida con page_url y titulo para cada storyline.
+        """
+        resultado: list[dict] = []
+
+        for info in storylines_mt:
+            numero   = info["numero"]
+            file_id  = info["file_id"]
+            unidad   = info.get("unidad")
+
+            # Determinar slug y título
+            slug = f"material-de-trabajo-interactivo-{numero}"
+
+            if unidad:
+                titulo = f"Unidad {unidad} - Material de Trabajo - Interactivo {numero}"
+            else:
+                titulo = f"Material de Trabajo - Interactivo {numero}"
+
+            # Generar HTML del iframe con IframeComposer
+            composer = self._factory.create(PageType.IFRAME)
+            html = composer.compose(course_id, {"file_id": file_id})
+
+            try:
+                await self._page_repo.update_or_create_page(
+                    course_id, slug, titulo, html
+                )
+                logger.info(
+                    "Página Material de Trabajo SCORM creada: '%s'", slug
+                )
+            except Exception as exc:
+                logger.warning(
+                    "No se pudo crear página '%s': %s", slug, exc
+                )
+
+            resultado.append({
+                "numero":   numero,
+                "file_id":  file_id,
+                "carpeta":  info["carpeta"],
+                "page_url": slug,
+                "titulo":   titulo,
+                "unidad":   unidad,
+            })
+
+        return resultado
+    
     @staticmethod
     def _buscar_archivos_material_trabajo(
         files_map: dict[str, int]
@@ -428,21 +489,39 @@ class DeploymentOrchestrator:
             except Exception as exc:
                 logger.warning("No se pudo actualizar cierre: %s", exc)
 
-        # 3. Página de Material de trabajo
-        # Paso 3 — Material de trabajo (PDFs individuales o index.html)
+        # 3. Página de Material de trabajo (PDFs + Storylines)
         archivos_trabajo = self._buscar_archivos_material_trabajo(files_map)
-        if archivos_trabajo:
+
+        # Detectar y crear páginas de Storyline en Material de trabajo
+        storylines_mt = self._detector.detect_material_trabajo(files_map)
+        paginas_mt_interactivo: list[dict] = []
+        if storylines_mt:
+            paginas_mt_interactivo = await self._crear_paginas_material_trabajo_interactivo(
+                course_id, storylines_mt
+            )
+
+        # Actualizar la página "material-de-trabajo" con PDFs + Storylines
+        if archivos_trabajo or paginas_mt_interactivo:
             composer = self._factory.create(PageType.MATERIAL_TRABAJO)
-            html = composer.compose(course_id, {"archivos": archivos_trabajo})
+            html = composer.compose(course_id, {
+                "archivos":   archivos_trabajo,
+                "storylines": paginas_mt_interactivo,
+            })
             try:
                 await self._page_repo.update_page(
                     course_id, "material-de-trabajo", html
                 )
-                logger.info("Página 'material-de-trabajo' actualizada con botones")
+                logger.info(
+                    "Página 'material-de-trabajo' actualizada — "
+                    "%d PDF(s), %d Storyline(s)",
+                    len(archivos_trabajo),
+                    len(paginas_mt_interactivo),
+                )
             except Exception as exc:
-                logger.warning("No se pudo actualizar material-de-trabajo: %s", exc)
+                logger.warning(
+                    "No se pudo actualizar material-de-trabajo: %s", exc
+                )
         elif files_map.get("3. Material de trabajo/index.html"):
-            # Fallback: index.html como iframe
             file_id_trabajo = files_map["3. Material de trabajo/index.html"]
             composer = self._factory.create(PageType.IFRAME)
             html = composer.compose(course_id, {"file_id": file_id_trabajo})
@@ -452,7 +531,9 @@ class DeploymentOrchestrator:
                 )
                 logger.info("Página 'material-de-trabajo' actualizada como iframe")
             except Exception as exc:
-                logger.warning("No se pudo actualizar material-de-trabajo: %s", exc)
+                logger.warning(
+                    "No se pudo actualizar material-de-trabajo: %s", exc
+                )
 
         # Paso 3.5 — Crear páginas interactivas ANTES de Material Fundamental
         paginas_interactivas_creadas = await self._crear_paginas_interactivas(
