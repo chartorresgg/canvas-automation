@@ -5,11 +5,13 @@
 
 import axios from "axios"
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ?? "http://localhost:8000/api/v1"
+
 export const apiClient = axios.create({
-  baseURL: "http://localhost:8000/api/v1",
+  baseURL: API_BASE_URL,
   timeout: 120_000,
 })
-
 // ── Autenticación — interceptor ──────────────────────────────────────────────
 
 /**
@@ -169,17 +171,17 @@ export async function startDeploy(params: {
  * @returns        EventSource que el llamador puede cerrar con .close()
  */
 export function openDeployStream(
-  taskId:  string,
-  onEvent: (event: ProgressEventData) => void,
-  onError: (err: Event) => void,
+  taskId:    string,
+  onMessage: (event: ProgressEventData) => void,
+  onError:   (error: Event) => void,
 ): EventSource {
-  const url = `http://localhost:8000/api/v1/deploy/stream/${taskId}`
+  const url = `${API_BASE_URL}/deploy/stream/${taskId}`
   const source = new EventSource(url)
 
   source.onmessage = (e: MessageEvent) => {
     try {
       const data = JSON.parse(e.data) as ProgressEventData
-      onEvent(data)
+      onMessage(data)
     } catch {
       console.warn("SSE: evento no parseable:", e.data)
     }

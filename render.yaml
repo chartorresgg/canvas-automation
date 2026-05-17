@@ -1,0 +1,21 @@
+# Configuración de despliegue en Render
+# Canvas LMS Automation App — Backend FastAPI
+
+services:
+  - type: web
+    name: canvas-aulas-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+
+    envVars:
+      - key: CANVAS_BASE_URL
+        value: https://poli.instructure.com/api/v1/
+      - key: CANVAS_ACCOUNT_ID
+        value: "1"
+      - key: AUDIT_DB_PATH
+        value: /tmp/audit_log.db
+      - key: FRONTEND_URL
+        sync: false   # Se configura manualmente en el dashboard de Render
