@@ -154,17 +154,22 @@ class TestUploadEndpoint:
 # ──────────────────────────────────────────────────────────────────────────────
 
 class TestDeployEndpoint:
+    """
+    Tests del endpoint POST /api/v1/deploy.
 
-    def _mock_background_task(self):
-        """Context manager que parchea _ejecutar_deploy_background."""
-        return patch(
-            "app.presentation.routers.deploy._ejecutar_deploy_background",
-            new_callable=lambda: lambda *a, **kw: AsyncMock(),
-        )
+    Parchea get_canvas_token_from_session para aislar las pruebas
+    del sistema de autenticación — la auth se prueba en test_auth_router.py.
+    """
+
+    # Parche de autenticación reutilizable en todos los tests de este clase
+    _PATCH_AUTH = patch(
+        "app.presentation.routers.deploy.get_canvas_token_from_session",
+        return_value="test-canvas-token-fake",
+    )
 
     def test_deploy_nuevo_retorna_202(self) -> None:
         client = TestClient(app, raise_server_exceptions=False)
-        with patch(
+        with self._PATCH_AUTH, patch(
             "app.presentation.routers.deploy._ejecutar_deploy_background",
             new=AsyncMock(),
         ):
@@ -172,12 +177,13 @@ class TestDeployEndpoint:
                 "/api/v1/deploy",
                 data=_form_data_nuevo(),
                 files={"zip_file": ("curso.zip", _crear_zip_bytes(), "application/zip")},
+                headers={"X-Session-ID": "test-session"},
             )
         assert resp.status_code == 202
 
     def test_deploy_retorna_task_id(self) -> None:
         client = TestClient(app, raise_server_exceptions=False)
-        with patch(
+        with self._PATCH_AUTH, patch(
             "app.presentation.routers.deploy._ejecutar_deploy_background",
             new=AsyncMock(),
         ):
@@ -185,6 +191,7 @@ class TestDeployEndpoint:
                 "/api/v1/deploy",
                 data=_form_data_nuevo(),
                 files={"zip_file": ("curso.zip", _crear_zip_bytes(), "application/zip")},
+                headers={"X-Session-ID": "test-session"},
             )
         data = resp.json()
         assert "task_id" in data
@@ -192,7 +199,7 @@ class TestDeployEndpoint:
 
     def test_deploy_retorna_stream_url(self) -> None:
         client = TestClient(app, raise_server_exceptions=False)
-        with patch(
+        with self._PATCH_AUTH, patch(
             "app.presentation.routers.deploy._ejecutar_deploy_background",
             new=AsyncMock(),
         ):
@@ -200,32 +207,36 @@ class TestDeployEndpoint:
                 "/api/v1/deploy",
                 data=_form_data_nuevo(),
                 files={"zip_file": ("curso.zip", _crear_zip_bytes(), "application/zip")},
+                headers={"X-Session-ID": "test-session"},
             )
         data = resp.json()
         assert "stream_url" in data
         assert "stream" in data["stream_url"]
 
     def test_deploy_sin_zip_retorna_422(self) -> None:
+        # Sin ZIP — FastAPI rechaza antes de llegar a la auth
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.post(
             "/api/v1/deploy",
             data=_form_data_nuevo(),
-            # Sin archivo ZIP
         )
         assert resp.status_code in (400, 422)
 
     def test_deploy_archivo_no_zip_retorna_400(self) -> None:
+        # Archivo no ZIP — requiere auth para llegar a la validación
         client = TestClient(app, raise_server_exceptions=False)
-        resp = client.post(
-            "/api/v1/deploy",
-            data=_form_data_nuevo(),
-            files={"zip_file": ("curso.txt", b"no zip", "text/plain")},
-        )
+        with self._PATCH_AUTH:
+            resp = client.post(
+                "/api/v1/deploy",
+                data=_form_data_nuevo(),
+                files={"zip_file": ("curso.txt", b"no zip", "text/plain")},
+                headers={"X-Session-ID": "test-session"},
+            )
         assert resp.status_code == 400
 
     def test_deploy_existente_retorna_202(self) -> None:
         client = TestClient(app, raise_server_exceptions=False)
-        with patch(
+        with self._PATCH_AUTH, patch(
             "app.presentation.routers.deploy._ejecutar_deploy_background",
             new=AsyncMock(),
         ):
@@ -233,6 +244,7 @@ class TestDeployEndpoint:
                 "/api/v1/deploy",
                 data=_form_data_existente(),
                 files={"zip_file": ("curso.zip", _crear_zip_bytes(), "application/zip")},
+                headers={"X-Session-ID": "test-session"},
             )
         assert resp.status_code == 202
 
