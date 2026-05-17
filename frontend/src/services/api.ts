@@ -10,6 +10,50 @@ export const apiClient = axios.create({
   timeout: 120_000,
 })
 
+// ── Autenticación — interceptor ──────────────────────────────────────────────
+
+/**
+ * Almacena el session_id en memoria del módulo.
+ * Se actualiza cuando el TokenContext llama a setApiSessionId().
+ */
+let _sessionId: string | null = null;
+
+export function setApiSessionId(id: string | null): void {
+  _sessionId = id;
+}
+
+// Interceptor: agrega X-Session-ID a todos los requests si hay sesión activa
+apiClient.interceptors.request.use(config => {
+  if (_sessionId) {
+    config.headers["X-Session-ID"] = _sessionId;
+  }
+  return config;
+});
+
+// ── Endpoints de autenticación ───────────────────────────────────────────────
+
+export interface LoginResponse {
+  session_id: string;
+  user_name:  string;
+  user_email: string;
+  message:    string;
+}
+
+export async function login(canvasToken: string): Promise<LoginResponse> {
+  const response = await apiClient.post<LoginResponse>("/auth/login", {
+    canvas_token: canvasToken,
+  });
+  setApiSessionId(response.data.session_id);
+  return response.data;
+}
+
+export async function logout(sessionId: string): Promise<void> {
+  await apiClient.post("/auth/logout", null, {
+    headers: { "X-Session-ID": sessionId },
+  });
+  setApiSessionId(null);
+}
+
 // ── Tipos de respuesta del backend ───────────────────────────────────────────
 
 export interface UploadResponse {
