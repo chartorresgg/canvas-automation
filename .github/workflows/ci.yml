@@ -56,4 +56,4 @@ jobs:
       - name: Verificar tipos TypeScript
         working-directory: frontend
         continue-on-error: true
-        run: npx tsc --noEmit --skipLibCheck
+        run: npx tsc --noEmit --skipLibCheck --ignoreDeprecations 6.0

@@ -5,10 +5,10 @@ Estrategia: usar httpx.MockTransport para interceptar peticiones HTTP
 sin hacer llamadas reales a Canvas. Esto garantiza que los tests son
 deterministas, rápidos y no requieren conexión a internet.
 """
-
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 from unittest.mock import patch
 
@@ -111,11 +111,12 @@ class TestConstruccion:
                 CanvasHttpClient()
 
     def test_lanza_error_si_no_hay_token(self) -> None:
-        with patch.dict("os.environ", {
-            "CANVAS_BASE_URL": "https://test.instructure.com/api/v1",
-            "CANVAS_ACCESS_TOKEN": "",
-        }):
-            with pytest.raises(ValueError, match="CANVAS_ACCESS_TOKEN"):
+        with patch.dict(
+            os.environ,
+            {"CANVAS_BASE_URL": "https://poli.instructure.com/api/v1/",
+            "CANVAS_ACCESS_TOKEN": ""},
+        ):
+            with pytest.raises(CanvasAuthError, match="token de Canvas"):
                 CanvasHttpClient()
 
     def test_lee_configuracion_del_entorno(self) -> None:

@@ -74,13 +74,14 @@ def _summary_exitoso(files_map: dict[str, int] | None = None) -> UploadSummary:
 
 def _mock_course_repo() -> MagicMock:
     mock = MagicMock(spec=CourseRepository)
-    mock.create_course = AsyncMock(return_value=_info_curso())
-    mock.copy_template = AsyncMock(
+    mock.create_course          = AsyncMock(return_value=_info_curso())
+    mock.copy_template          = AsyncMock(
         return_value=MigrationResult(42, 9876, "running", False)
     )
-    mock.poll_migration = AsyncMock(return_value=None)
-    mock.get_course      = AsyncMock(return_value=_info_curso())
-    mock.list_assignments = AsyncMock(return_value=[])
+    mock.poll_migration         = AsyncMock(return_value=None)
+    mock.get_course             = AsyncMock(return_value=_info_curso())
+    mock.list_assignments       = AsyncMock(return_value=[])
+    mock.list_discussion_topics = AsyncMock(return_value=[])  # ← AGREGAR
     return mock
 
 
@@ -104,9 +105,9 @@ def _mock_page_repo() -> MagicMock:
 
 def _mock_detector() -> MagicMock:
     mock = MagicMock(spec=InteractiveContentDetector)
-    mock.detect.return_value = {}
+    mock.detect.return_value                  = {}
+    mock.detect_material_trabajo.return_value = []  # ← AGREGAR
     return mock
-
 
 def _mock_factory() -> MagicMock:
     mock = MagicMock(spec=PageComposerFactory)
@@ -114,7 +115,6 @@ def _mock_factory() -> MagicMock:
     composer_mock.compose.return_value = "<p>html</p>"
     mock.create.return_value = composer_mock
     return mock
-
 
 def _crear_orchestrator(
     tmp_path: Path,
