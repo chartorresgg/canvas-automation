@@ -23,14 +23,18 @@ import uuid
 from pathlib import Path
 
 from dataclasses import dataclass, field as dc_field
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from app.domain.value_objects.deployment_config import (
     CourseOption,
     DeploymentConfig,
 )
 from app.domain.value_objects.progress_event import EventStatus, ProgressEvent
-from app.presentation.dependencies import TMP_DIR, crear_orchestrator_context
+from app.presentation.dependencies import (
+    TMP_DIR,
+    crear_orchestrator_context,
+    get_canvas_token_from_session,
+)
 from app.presentation.schemas import DeployStartResponse
 from app.presentation.task_manager import task_manager
 
@@ -63,6 +67,7 @@ async def iniciar_deploy(
     course_id:            int | None = Form(default=None, description="ID del curso existente (si course_option=existing)."),
     modelo_instruccional: str = Form(default="Unidades", description="Modelo instruccional del aula."),
     nivel_formacion:      str = Form(default="Pregrado",  description="Nivel de formación del curso."),
+    x_session_id: str = Header(alias="X-Session-ID", default=""),
 ) -> DeployStartResponse:
     """
     Endpoint principal de despliegue.
@@ -78,6 +83,8 @@ async def iniciar_deploy(
     El BackgroundTask corre de forma asíncrona: el cliente recibe la
     respuesta 202 antes de que el orquestador haya procesado un solo archivo.
     """
+
+    canvas_token = get_canvas_token_from_session(x_session_id)
     # 1. Validar extensión
     if not zip_file.filename or not zip_file.filename.lower().endswith(".zip"):
         raise HTTPException(
@@ -146,6 +153,7 @@ async def iniciar_deploy(
         task_id=task_id,
         config=config,
         queue=queue,
+        canvas_token=canvas_token,
     )
 
     logger.info("Despliegue iniciado — task_id: %s", task_id)
@@ -345,6 +353,7 @@ async def _ejecutar_deploy_background(
     task_id: str,
     config:  DeploymentConfig,
     queue:   asyncio.Queue,
+    canvas_token: str,
 ) -> None:
     """BackgroundTask con registro de auditoría al finalizar."""
     from app.presentation.dependencies import audit_repository
@@ -365,7 +374,10 @@ async def _ejecutar_deploy_background(
         task_manager.registrar_asyncio_task(task_id, tarea_asyncio)
 
     try:
-        http, orchestrator = await crear_orchestrator_context(TMP_DIR)
+        http, orchestrator = await crear_orchestrator_context(
+        TMP_DIR,
+        canvas_token=canvas_token,   # ← pasar token
+    )
 
         async for event in orchestrator.deploy(config):
             queue.put_nowait(event)
@@ -515,7 +527,12 @@ _MIN_BODY_CHARS = 300
         "curso tiene contenido real. Retorna un reporte de verificación."
     ),
 )
-async def verificar_despliegue(course_id: int) -> JSONResponse:
+async def verificar_despliegue(
+
+    course_id: int,
+    x_session_id: str = Header(alias="X-Session-ID", default=""),
+
+) -> JSONResponse:
     """
     Endpoint de verificación post-despliegue (HU-14).
 
@@ -526,9 +543,10 @@ async def verificar_despliegue(course_id: int) -> JSONResponse:
 
     Retorna un reporte JSON con semáforo (success / warning / error).
     """
+    canvas_token = get_canvas_token_from_session(x_session_id)
     http = None
     try:
-        http, orchestrator = await crear_orchestrator_context(TMP_DIR)
+        http, orchestrator = await crear_orchestrator_context(TMP_DIR,canvas_token=canvas_token,)
 
         # Reconstruir repositorios desde el contexto del orquestador
         from app.infrastructure.canvas.course_repository import CourseRepository
