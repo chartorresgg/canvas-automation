@@ -46,21 +46,21 @@ def get_interactive_detector() -> InteractiveContentDetector:
 
 
 async def crear_orchestrator_context(
-    tmp_dir: Path,
+    tmp_dir:      Path,
+    canvas_token: str | None = None,
 ) -> tuple[CanvasHttpClient, "DeploymentOrchestrator"]:  # noqa: F821
     """
     Crea el orquestador con todos sus colaboradores.
 
-    Retorna el cliente HTTP para que el llamador pueda gestionar
-    su ciclo de vida con `async with`.
-
-    Returns:
-        Tupla (http_client, orchestrator) — el cliente debe cerrarse
-        con await http_client.__aexit__(None, None, None) al terminar.
+    Args:
+        tmp_dir:      Directorio temporal para ZIPs.
+        canvas_token: Token Canvas de la sesión activa.
+                      Si es None, usa la variable de entorno
+                      CANVAS_ACCESS_TOKEN (modo desarrollo local).
     """
     from app.application.orchestrator import DeploymentOrchestrator
 
-    http = CanvasHttpClient()
+    http = CanvasHttpClient(token=canvas_token)
     await http.__aenter__()
 
     course_repo = CourseRepository(http)
@@ -101,3 +101,21 @@ def get_audit_repository() -> IAuditRepository:
 
 # Instancia singleton — un solo repositorio por proceso
 audit_repository: IAuditRepository = get_audit_repository()
+
+def get_canvas_token_from_session(session_id: str) -> str:
+    """
+    Recupera el token Canvas de una sesión activa.
+
+    Raises:
+        HTTPException 401 si la sesión no existe o expiró.
+    """
+    from fastapi import HTTPException
+    from app.presentation.session_manager import session_manager
+
+    token = session_manager.obtener_token(session_id)
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Sesión no encontrada. Por favor inicia sesión nuevamente.",
+        )
+    return token

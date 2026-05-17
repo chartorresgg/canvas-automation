@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.presentation.routers import health, deploy, audit, benchmark
+from app.presentation.routers import health, deploy, audit, benchmark, auth
 
 app = FastAPI(
     title="Canvas LMS Automation API",
@@ -21,6 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router,      prefix="/api/v1", tags=["Auth"])
 app.include_router(health.router,    prefix="/api/v1", tags=["Health"])
 app.include_router(deploy.router,    prefix="/api/v1", tags=["Deploy"])
 app.include_router(audit.router,     prefix="/api/v1", tags=["Audit"])
