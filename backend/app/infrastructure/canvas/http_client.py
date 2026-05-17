@@ -119,9 +119,9 @@ class CanvasHttpClient:
                 "Verifica el archivo backend/.env"
             )
         if not self._token:
-            raise ValueError(
-                "CANVAS_ACCESS_TOKEN no está configurada. "
-                "Verifica el archivo backend/.env"
+            raise CanvasAuthError(
+                "No se recibió un token de Canvas válido. "
+                "Inicia sesión en la aplicación para continuar."
             )
 
         self._timeout = httpx.Timeout(timeout_segundos)
