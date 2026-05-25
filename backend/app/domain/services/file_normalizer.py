@@ -1,6 +1,10 @@
 """
 Servicio de normalización de estructura de archivos para aulas Canvas LMS.
-Aplica las convenciones institucionales del Politécnico Grancolombiano.
+Aplica las denominacios de archivos de acuerdo al estándar Institucional.
+
+Aplica expresiones regulares para renombrar carpetas
+(ej: "2 Material fundamental" → "2. Material fundamental")
+y PDFs. Solo usa la biblioteca estándar de Python.
 
 Capa: Dominio
 Patrón: ninguno (servicio de dominio puro)
@@ -12,6 +16,7 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar

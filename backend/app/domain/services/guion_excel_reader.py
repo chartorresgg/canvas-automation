@@ -2,7 +2,7 @@
 Lector del archivo Excel de Guion de módulo.
 
 Extrae las URLs de recursos multimedia y los párrafos de texto
-que se inyectan en las páginas del aula virtual Canvas.
+que se inyectan en las páginas del Aula Master.
 
 Estructura del Excel (columnas 0-3):
     col[0]: Etiqueta de sección  ("URL video inicial", "Unidad 1", "Cierre"...)

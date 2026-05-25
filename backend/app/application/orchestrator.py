@@ -18,14 +18,13 @@ import asyncio
 import logging
 import re
 import uuid
+
 from asyncio import Queue
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
 from app.domain.services.file_normalizer import FileNormalizer
-from app.domain.services.interactive_content_detector import (
-    InteractiveContentDetector,
-)
+from app.domain.services.interactive_content_detector import (InteractiveContentDetector,)
 from app.domain.services.guion_excel_reader import GuionData, GuionExcelReader
 from app.domain.services.zip_processor import ZipProcessor
 from app.domain.value_objects.deployment_config import CourseOption, DeploymentConfig
