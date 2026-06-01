@@ -382,23 +382,26 @@ class DeploymentOrchestrator:
             composer = self._factory.create(PageType.IFRAME)
             html = composer.compose(course_id, {"file_id": file_id})
 
+            slug_confirmado = slug
             try:
-                await self._page_repo.update_or_create_page(
+                page_info = await self._page_repo.update_or_create_page(
                     course_id, slug, titulo, html
                 )
+                slug_confirmado = page_info.url  # ← slug real asignado por Canvas
                 logger.info(
-                    "Página Material de Trabajo SCORM creada: '%s'", slug
+                    "Página Material de Trabajo SCORM creada: '%s'", slug_confirmado
                 )
             except Exception as exc:
                 logger.warning(
-                    "No se pudo crear página '%s': %s", slug, exc
+                    "No se pudo crear página '%s': %s — usando slug local",
+                    slug, exc,
                 )
 
             resultado.append({
                 "numero":   numero,
                 "file_id":  file_id,
                 "carpeta":  info["carpeta"],
-                "page_url": slug,
+                "page_url": slug_confirmado,  # ← slug confirmado por Canvas
                 "titulo":   titulo,
                 "unidad":   unidad,
             })

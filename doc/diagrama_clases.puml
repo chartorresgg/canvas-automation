@@ -1,0 +1,243 @@
+@startuml DiagramaDeClases
+
+title Diagrama de Clases — Canvas LMS Automation App
+caption Politecnico Grancolombiano · 2026
+
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Helvetica
+skinparam defaultFontSize 10
+skinparam class {
+  BackgroundColor      #FFFFFF
+  BorderColor          #64748B
+  FontColor            #1E293B
+  HeaderBackgroundColor #F1F5F9
+  ArrowColor           #475569
+  AttributeFontColor   #475569
+  AttributeFontSize    9
+}
+skinparam interface {
+  BackgroundColor      #DCFCE7
+  BorderColor          #16A34A
+  FontColor            #15803D
+}
+skinparam package {
+  BackgroundColor      #FAFAFA
+  BorderColor          #CBD5E1
+  FontStyle            bold
+  FontSize             11
+}
+skinparam stereotypeCBackgroundColor #E2E8F0
+skinparam stereotypeABackgroundColor #DCFCE7
+
+' ═══════════════════════════════════════════
+' CAPA 1 — DOMINIO
+' ═══════════════════════════════════════════
+package "Capa 1 — Dominio" #F0FDF4 {
+
+  interface IPageComposer {
+    + compose(course_id: int,\n  files_map: dict,\n  guion_data: GuionData) : str
+  }
+
+  interface IAuditRepository {
+    + registrar(entry: AuditEntry) : None
+    + listar() : list[AuditEntry]
+    + exportar() : bytes
+  }
+
+  class DeploymentConfig <<value object>> {
+    + course_option : CourseOption
+    + course_name : str
+    + template_id : int
+    + course_id : int
+    + zip_path : Path
+  }
+
+  class ProgressEvent <<value object>> {
+    + step : int
+    + percentage : float
+    + status : str
+    + message : str
+    + course_id : int
+    + to_json() : str
+  }
+
+  class AuditEntry <<value object>> {
+    + task_id : str
+    + course_id : int
+    + course_name : str
+    + zip_filename : str
+    + archivos_subidos : int
+    + duracion_segundos : int
+    + estado : str
+    + finalizado_en : datetime
+  }
+
+  class ZipProcessor <<domain service>> {
+    + extract(zip_path: Path) : Path
+    + cleanup(tmp_dir: Path) : None
+  }
+
+  class FileNormalizer <<domain service>> {
+    + normalize(content_path: Path) : NormalizationResult
+  }
+
+  class GuionExcelReader <<domain service>> {
+    + read(excel_path: Path) : GuionData
+  }
+
+  class InteractiveContentDetector <<domain service>> {
+    - _patterns : list[Pattern]
+    + detect(files_map: dict) : dict
+  }
+}
+
+' ═══════════════════════════════════════════
+' CAPA 2 — APLICACION
+' ═══════════════════════════════════════════
+package "Capa 2 — Aplicacion" #FFF7ED {
+
+  class DeploymentOrchestrator <<facade>> {
+    - _course_repo : CourseRepository
+    - _file_repo   : FileRepository
+    - _page_repo   : PageRepository
+    - _factory     : PageComposerFactory
+    - _audit_repo  : IAuditRepository
+    - _zip_proc    : ZipProcessor
+    - _normalizer  : FileNormalizer
+    - _detector    : InteractiveContentDetector
+    - _canvas_token: str
+    - _tmp_dir     : Path
+    + deploy(config: DeploymentConfig) : AsyncGenerator[ProgressEvent]
+  }
+}
+
+' ═══════════════════════════════════════════
+' CAPA 3 — INFRAESTRUCTURA
+' ═══════════════════════════════════════════
+package "Capa 3 — Infraestructura" #F5F3FF {
+
+  class CanvasHttpClient {
+    - _base_url : str
+    - _token    : str
+    - _retries  : int
+    + get(endpoint: str) : dict
+    + post(endpoint: str, data: dict) : dict
+    + put(endpoint: str, data: dict) : dict
+    + upload_binary(url: str, data: bytes) : dict
+  }
+
+  class CourseRepository <<repository>> {
+    - _client : CanvasHttpClient
+    + create_course(name: str) : CourseInfo
+    + copy_template(course_id: int, template_id: int) : int
+    + poll_migration(course_id: int, migration_id: int) : None
+    + get_course(course_id: int) : CourseInfo
+  }
+
+  class FileRepository <<repository>> {
+    - _client : CanvasHttpClient
+    + upload_all(course_id: int,\n  content_path: Path,\n  on_progress: Callable) : UploadSummary
+    - _upload_one(course_id: int, file_path: Path) : int
+  }
+
+  class PageRepository <<repository>> {
+    - _client : CanvasHttpClient
+    + update_page(course_id: int, slug: str, html: str) : PageInfo
+    + update_or_create_page(course_id: int, slug: str, html: str) : PageInfo
+    + link_pdfs_bulk(course_id: int, files_map: dict) : list
+  }
+
+  class PageComposerFactory <<factory>> {
+    - _registry : dict[str, type]
+    + create(page_type: str) : IPageComposer
+  }
+
+  class FrontPageComposer <<strategy>> {
+    + compose(course_id, files_map, guion_data) : str
+  }
+
+  class MaterialFundamentalComposer <<strategy>> {
+    + compose(course_id, files_map, guion_data) : str
+  }
+
+  class IframeComposer <<strategy>> {
+    + compose(course_id, files_map, guion_data) : str
+  }
+
+  class ComplementaryPageComposer <<strategy>> {
+    + compose(course_id, files_map, guion_data) : str
+  }
+
+  class MaterialDeTrabajoComposer <<strategy>> {
+    + compose(course_id, files_map, guion_data) : str
+  }
+
+  class SQLiteAuditRepository <<repository>> {
+    - _db_path : str
+    + registrar(entry: AuditEntry) : None
+    + listar(estado: str) : list[AuditEntry]
+    + exportar() : bytes
+    - _init_db() : None
+  }
+}
+
+' ═══════════════════════════════════════════
+' CAPA 4 — PRESENTACION
+' ═══════════════════════════════════════════
+package "Capa 4 — Presentacion" #EFF6FF {
+
+  class SessionManager {
+    - _sessions : dict[str, SessionEntry]
+    + crear_sesion(token: str, name: str) : str
+    + obtener_token(session_id: str) : str
+    + eliminar_sesion(session_id: str) : None
+    + validar(session_id: str) : bool
+  }
+
+  class TaskManager {
+    - _tasks : dict[str, asyncio.Task]
+    - _queues: dict[str, asyncio.Queue]
+    + registrar(task_id: str, task: Task, queue: Queue) : None
+    + cancelar(task_id: str) : None
+    + obtener_queue(task_id: str) : Queue
+  }
+}
+
+' ═══════════════════════════════════════════
+' RELACIONES
+' ═══════════════════════════════════════════
+
+' Implementacion de interfaces
+SQLiteAuditRepository         ..|> IAuditRepository          : implements
+FrontPageComposer             ..|> IPageComposer              : implements
+MaterialFundamentalComposer   ..|> IPageComposer              : implements
+IframeComposer                ..|> IPageComposer              : implements
+ComplementaryPageComposer     ..|> IPageComposer              : implements
+MaterialDeTrabajoComposer     ..|> IPageComposer              : implements
+
+' Orchestrator recibe y emite
+DeploymentOrchestrator ..>  DeploymentConfig               : recibe
+DeploymentOrchestrator ..>  ProgressEvent                  : emite
+
+' Orchestrator usa colaboradores (inyeccion de dependencias)
+DeploymentOrchestrator -->  CourseRepository               : usa
+DeploymentOrchestrator -->  FileRepository                 : usa
+DeploymentOrchestrator -->  PageRepository                 : usa
+DeploymentOrchestrator -->  PageComposerFactory            : usa
+DeploymentOrchestrator -->  IAuditRepository               : usa
+DeploymentOrchestrator -->  ZipProcessor                   : usa
+DeploymentOrchestrator -->  FileNormalizer                 : usa
+DeploymentOrchestrator -->  InteractiveContentDetector     : usa
+
+' Factory crea
+PageComposerFactory    ..>  IPageComposer                  : crea
+
+' Repositorios Canvas usan el cliente HTTP
+CourseRepository       -->  CanvasHttpClient               : usa
+FileRepository         -->  CanvasHttpClient               : usa
+PageRepository         -->  CanvasHttpClient               : usa
+
+' Persistencia
+SQLiteAuditRepository  ..>  AuditEntry                     : persiste
+
+@enduml
