@@ -1,6 +1,10 @@
 """
-Servicio de procesamiento de archivos ZIP para aulas Canvas LMS.
+Servicio de procesamiento de archivos ZIP para Aulas Master.
 Orquesta la extracción y delega la normalización en FileNormalizer.
+Extrae y limpia los archivos .ZIP
+
+Descomprime el ZIP en un directorio temporal, lista los archivos recursivamente
+ y limpia los temporales al finalizar. Sin dependencias externas.
 
 Capa: Dominio
 Patrón: ninguno (servicio de dominio — orquesta FileNormalizer)
@@ -13,6 +17,7 @@ from __future__ import annotations
 import logging
 import shutil
 import zipfile
+
 from dataclasses import dataclass, field
 from pathlib import Path
 
