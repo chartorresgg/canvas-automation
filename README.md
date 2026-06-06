@@ -222,8 +222,8 @@ pytest tests/unit/ --cov=app --cov-report=term-missing
 | Sprint 2 | Integración con API Canvas | 21 | 21 ✅ |
 | Sprint 3 | Automatización y Monitoreo | 18 | 18 ✅ |
 | Sprint 4 | Resiliencia y Reportes | 18 | 13 ✅ |
-| Sprint 5 | Despliegue en Nube y CI/CD | 13 | 13 ✅ |
-| **Total** | | **89** | **84 SP únicos** |
+| Sprint 5 | Despliegue en Nube y CI/CD | 8 | 13 ✅ |
+| **Total** | | **89** | **79 SP únicos** |
 
 ---
 
@@ -244,9 +244,9 @@ pytest tests/unit/ --cov=app --cov-report=term-missing
 
 ## Documentación
 
-- 📖 [Arquitectura](../../wiki/Architecture)
-- 🚀 [Getting Started](../../wiki/Getting-Started)
-- 📡 [API Reference](../../wiki/API-Reference)
-- 🔧 [Conventions](../../wiki/Conventions)
-- 🐛 [Troubleshooting](../../wiki/Troubleshooting)
-- 📊 [Diagramas UML](../../wiki/Diagramas-UML)
+- 🚀 [Getting Started](https://github.com/chartorresgg/canvas-automation/wiki/01-%E2%80%90-Getting%E2%80%90Started)
+- 📖 [Arquitectura](https://github.com/chartorresgg/canvas-automation/wiki/02-%E2%80%90-Architecture)
+- 📊 [Diagramas UML](https://github.com/chartorresgg/canvas-automation/wiki/03-%E2%80%90-UML-Diagramas)
+- 📡 [API Reference](https://github.com/chartorresgg/canvas-automation/wiki/04-%E2%80%90-API%E2%80%90Reference)
+- 🔧 [Conventions](https://github.com/chartorresgg/canvas-automation/wiki/06-%E2%80%90-Conventions)
+- 🐛 [Troubleshooting](https://github.com/chartorresgg/canvas-automation/wiki/07-%E2%80%90-Troubleshooting)
