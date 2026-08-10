@@ -60,7 +60,7 @@ export function LoginPage() {
             htmlFor="token"
             className="text-xs font-medium text-slate-700"
           >
-            Token de API Canvas
+            Token de Canvas
           </Label>
           <div className="relative">
             <Input
@@ -69,7 +69,7 @@ export function LoginPage() {
               value={token}
               onChange={e => setToken(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleLogin()}
-              placeholder="Pega aquí tu token de Canvas"
+              placeholder="Ingrese su token de Canvas"
               className="pr-10 text-xs font-mono"
               disabled={cargando}
               autoComplete="off"
