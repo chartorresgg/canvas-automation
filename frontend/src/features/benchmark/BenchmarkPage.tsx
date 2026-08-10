@@ -107,8 +107,7 @@ export function BenchmarkPage() {
             {/* Excel */}
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                Excel del Guion{" "}
-                <span className="text-slate-400">(opcional)</span>
+                Guión de contenidos{" "}
               </label>
               <input
                 ref={excelRef}
