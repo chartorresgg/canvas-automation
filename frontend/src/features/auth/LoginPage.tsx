@@ -47,7 +47,7 @@ export function LoginPage() {
             <span className="text-white text-xl font-bold">C</span>
           </div>
           <h1 className="text-lg font-semibold text-slate-800">
-            Canvas LMS Automation
+            Automatización de Aulas Máster
           </h1>
           <p className="text-xs text-slate-400">
             Politécnico Grancolombiano
@@ -60,7 +60,7 @@ export function LoginPage() {
             htmlFor="token"
             className="text-xs font-medium text-slate-700"
           >
-            Token de Canvas API
+            Token de API Canvas
           </Label>
           <div className="relative">
             <Input
