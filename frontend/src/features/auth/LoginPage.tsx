@@ -99,22 +99,6 @@ export function LoginPage() {
         >
           {cargando ? "Verificando token…" : "Ingresar"}
         </Button>
-
-        {/* Instrucciones */}
-        <div className="text-xs text-slate-500 space-y-1 border-t border-slate-100 pt-4">
-          <p className="font-medium text-slate-600">¿Cómo obtener tu token?</p>
-          <ol className="list-decimal list-inside space-y-1 leading-relaxed">
-            <li>Inicia sesión en Canvas</li>
-            <li>Ve a tu foto → <strong>Cuenta</strong> → <strong>Configuración</strong></li>
-            <li>Busca <strong>Token de acceso aprobados</strong></li>
-            <li>Haz clic en <strong>Nuevo token de acceso</strong></li>
-            <li>Copia el token generado y pégalo aquí</li>
-          </ol>
-          <p className="text-slate-400 pt-1">
-            El token no se guarda en ningún servidor.
-            Solo vive en esta sesión de tu navegador.
-          </p>
-        </div>
       </div>
     </div>
   )
