@@ -88,7 +88,7 @@ export function BenchmarkPage() {
             {/* ZIP */}
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                Archivo ZIP del aula <span className="text-red-500">*</span>
+                Archivo ZIP de contenidos <span className="text-red-500">*</span>
               </label>
               <input
                 ref={zipRef}
