@@ -3,6 +3,7 @@
  * HU-16: Token de Canvas como contraseña de ingreso.
  */
 
+import fondoLogin from "@/assets/wallpaper.webp"
 import { useState } from "react"
 import { useToken } from "@/context/TokenContext"
 import { Button } from "@/components/ui/button"
@@ -38,8 +39,29 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-6">
+    <div className="relative min-h-screen bg-slate-950 flex items-center justify-center px-4 overflow-hidden">
+
+      {/* Capa 1 — Imagen de fondo */}
+      <div
+        className="absolute inset-0 z-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${fondoLogin})` }}
+        aria-hidden="true"
+      />
+
+      {/* Capa 2 — Degradado diagonal con los tonos de marca (slate + blue) */}
+      <div
+        className="absolute inset-0 z-0 bg-gradient-to-br from-slate-950/5 via-slate-900/0 to-blue-950/5"
+        aria-hidden="true"
+      />
+
+      {/* Capa 3 — Viñeta: oscurece los bordes y concentra la atención al centro */}
+      <div
+        className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,rgba(2,6,23,0.55)_100%)]"
+        aria-hidden="true"
+      />
+
+      {/* Tarjeta de acceso — z-10 la mantiene sobre las tres capas de fondo */}
+      <div className="relative z-10 w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-2xl shadow-slate-950/50 p-8 space-y-6">
 
         {/* Logo e identidad */}
         <div className="text-center space-y-2">
