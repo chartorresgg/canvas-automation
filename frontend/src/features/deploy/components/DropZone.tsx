@@ -279,11 +279,7 @@ export function DropZone({ onUploadSuccess }: DropZoneProps) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-700">
-                Excel del guion del curso{" "}
-                <span className="text-slate-400 font-normal">(opcional)</span>
-              </p>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Actualiza los textos del front del curso
+                Guión de contenidos{" "}
               </p>
             </div>
             <Button

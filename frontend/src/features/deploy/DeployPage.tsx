@@ -189,7 +189,7 @@ export function DeployPage() {
               {state.step === 1 && (
                 <>
                   <h2 className="text-base font-semibold text-slate-800 mb-1">
-                    Cargar archivos del aula
+                    Cargar archivos del Aula Máster
                   </h2>
                   <p className="text-sm text-slate-500 mb-5">
                     Sube el ZIP con el contenido del aula virtual.
