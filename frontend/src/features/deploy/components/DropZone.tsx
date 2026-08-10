@@ -21,10 +21,48 @@ interface DropZoneProps {
 
 type UploadState = "idle" | "uploading" | "success" | "error"
 
+/**
+ * Fase dentro del estado "uploading".
+ *
+ * "transfiriendo" → los bytes viajan al servidor; el avance es medible.
+ * "procesando"    → la transferencia terminó y el servidor extrae y
+ *                   normaliza el ZIP; el avance no es medible desde aquí.
+ */
+type FaseSubida = "transfiriendo" | "procesando"
+
+/**
+ * Convierte un error de subida en un mensaje accionable para el analista.
+ *
+ * El mensaje crudo de axios ("timeout of 120000ms exceeded") no comunica
+ * nada al usuario ni sugiere qué hacer. La fase en que ocurrió el fallo
+ * permite distinguir un problema de red de uno de procesamiento.
+ */
+function traducirErrorSubida(err: unknown, fase: FaseSubida): string {
+  const codigo = (err as { code?: string } | null)?.code
+
+  if (codigo === "ECONNABORTED" || codigo === "ETIMEDOUT") {
+    return fase === "transfiriendo"
+      ? "La subida superó el tiempo límite. Suele deberse a una conexión " +
+        "lenta o inestable. Verifica tu red e intenta de nuevo; una conexión " +
+        "por cable es más confiable que WiFi para archivos grandes."
+      : "El servidor superó el tiempo límite procesando el ZIP. El contenido " +
+        "puede ser demasiado pesado de descomprimir. Intenta dividirlo en " +
+        "varios despliegues más pequeños."
+  }
+
+  if (codigo === "ERR_NETWORK") {
+    return "Se perdió la conexión con el servidor durante la subida. " +
+      "Verifica tu red e intenta de nuevo."
+  }
+
+  return err instanceof Error ? err.message : "Error al procesar el archivo"
+}
+
 export function DropZone({ onUploadSuccess }: DropZoneProps) {
   const [uploadState, setUploadState] = useState<UploadState>("idle")
   const [isDragging, setIsDragging] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [fase, setFase] = useState<FaseSubida>("transfiriendo")
   const [files, setFiles] = useState<UploadedFiles | null>(null)
   const [error, setError]   = useState<string | null>(null)
   const [result, setResult] = useState<UploadResponse | null>(null)
@@ -123,17 +161,22 @@ export function DropZone({ onUploadSuccess }: DropZoneProps) {
 
     setUploadState("uploading")
     setProgress(0)
+    setFase("transfiriendo")
     setError(null)
 
-    // Simulación de progreso visual mientras el servidor procesa
-    const intervalo = setInterval(() => {
-      setProgress(prev => Math.min(prev + 8, 85))
-    }, 400)
-
     try {
-      const response = await uploadZip(files.zipFile, files.excelFile)
+      // Progreso real de transferencia reportado por axios (onUploadProgress).
+      // Al llegar a 100% los bytes ya salieron: lo que queda es el trabajo
+      // del servidor, que no es medible desde el cliente.
+      const response = await uploadZip(
+        files.zipFile,
+        files.excelFile,
+        porcentaje => {
+          setProgress(porcentaje)
+          if (porcentaje >= 100) setFase("procesando")
+        },
+      )
 
-      clearInterval(intervalo)
       setProgress(100)
       setResult(response)
       setUploadState("success")
@@ -151,11 +194,8 @@ export function DropZone({ onUploadSuccess }: DropZoneProps) {
         { zipFile: files.zipFile, excelFile: files.excelFile },
       )
     } catch (err: unknown) {
-      clearInterval(intervalo)
       setUploadState("error")
-      const mensaje =
-        err instanceof Error ? err.message : "Error al procesar el archivo"
-      setError(mensaje)
+      setError(traducirErrorSubida(err, fase))
     }
   }
 
@@ -164,6 +204,7 @@ export function DropZone({ onUploadSuccess }: DropZoneProps) {
     setResult(null)
     setError(null)
     setProgress(0)
+    setFase("transfiriendo")
     setUploadState("idle")
     if (zipInputRef.current)   zipInputRef.current.value = ""
     if (excelInputRef.current) excelInputRef.current.value = ""
@@ -313,7 +354,19 @@ export function DropZone({ onUploadSuccess }: DropZoneProps) {
         <div className="space-y-2">
           <Progress value={progress} className="h-2" />
           <p className="text-xs text-slate-500 text-center">
-            Procesando y normalizando archivos… {progress}%
+            {fase === "transfiriendo" ? (
+              <>
+                Subiendo archivos… {progress}%
+                {files?.zipFile && (
+                  <> de {(files.zipFile.size / 1024 / 1024).toFixed(0)} MB</>
+                )}
+              </>
+            ) : (
+              <>
+                Transferencia completa. Validando y normalizando en el
+                servidor… esto puede tardar varios minutos.
+              </>
+            )}
           </p>
         </div>
       )}
@@ -325,7 +378,7 @@ export function DropZone({ onUploadSuccess }: DropZoneProps) {
         onClick={handleUpload}
       >
         {uploadState === "uploading"
-          ? "Procesando…"
+          ? fase === "transfiriendo" ? "Subiendo…" : "Procesando…"
           : "Validar y continuar"}
       </Button>
     </div>

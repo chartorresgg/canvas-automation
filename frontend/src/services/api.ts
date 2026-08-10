@@ -12,6 +12,45 @@ export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 120_000,
 })
+
+/**
+ * Timeout extendido para peticiones que transportan archivos pesados.
+ *
+ * El timeout global de 120 s aplica a las llamadas REST normales, pero es
+ * insuficiente para subir un ZIP de aula: la transferencia de 300 MB sobre
+ * una conexión de 20 Mbps de subida ya consume esos 120 s por sí sola, sin
+ * contar el tiempo de extracción y normalización en el servidor.
+ *
+ * 15 minutos cubren un ZIP de 500 MB (el máximo que acepta el DropZone)
+ * sobre una conexión de ~5 Mbps de subida.
+ */
+const UPLOAD_TIMEOUT_MS = 900_000
+
+/**
+ * Callback de avance de subida. Recibe el porcentaje transferido (0-100).
+ *
+ * Al llegar a 100 la transferencia terminó, pero el servidor sigue
+ * procesando: la UI debe cambiar a un estado indeterminado en ese punto.
+ */
+export type UploadProgressCallback = (porcentaje: number) => void
+
+/**
+ * Construye la configuración de axios para peticiones con archivos adjuntos.
+ * Centraliza timeout, Content-Type y el reporte de progreso real.
+ */
+function configSubida(onProgress?: UploadProgressCallback) {
+  return {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: UPLOAD_TIMEOUT_MS,
+    onUploadProgress: onProgress
+      ? (evento: { loaded: number; total?: number }) => {
+          // total es undefined si el navegador no conoce el tamaño total
+          if (!evento.total) return
+          onProgress(Math.round((evento.loaded * 100) / evento.total))
+        }
+      : undefined,
+  }
+}
 // ── Autenticación — interceptor ──────────────────────────────────────────────
 
 /**
@@ -99,8 +138,9 @@ export interface HealthResponse {
  * No inicia el despliegue — solo valida y normaliza el ZIP.
  */
 export async function uploadZip(
-  zipFile:    File,
-  excelFile?: File,
+  zipFile:     File,
+  excelFile?:  File,
+  onProgress?: UploadProgressCallback,
 ): Promise<UploadResponse> {
   const formData = new FormData()
   formData.append("zip_file", zipFile)
@@ -110,7 +150,7 @@ export async function uploadZip(
   const response = await apiClient.post<UploadResponse>(
     "/deploy/upload",
     formData,
-    { headers: { "Content-Type": "multipart/form-data" } },
+    configSubida(onProgress),
   )
   return response.data
 }
@@ -131,6 +171,7 @@ export async function startDeploy(params: {
   templateId:           number
   modeloInstruccional:  string
   nivelFormacion:       string
+  onProgress?:          UploadProgressCallback
 }): Promise<DeployStartResponse> {
   const formData = new FormData()
 
@@ -154,7 +195,7 @@ export async function startDeploy(params: {
   const response = await apiClient.post<DeployStartResponse>(
     "/deploy",
     formData,
-    { headers: { "Content-Type": "multipart/form-data" } },
+    configSubida(params.onProgress),
   )
   return response.data
 }
@@ -335,8 +376,9 @@ export interface BenchmarkReport {
  * No llama a Canvas — mide solo el pipeline local.
  */
 export async function runBenchmark(
-  zipFile:    File,
-  excelFile?: File,
+  zipFile:     File,
+  excelFile?:  File,
+  onProgress?: UploadProgressCallback,
 ): Promise<BenchmarkReport> {
   const formData = new FormData()
   formData.append("zip_file", zipFile)
@@ -345,7 +387,7 @@ export async function runBenchmark(
   const response = await apiClient.post<BenchmarkReport>(
     "/benchmark",
     formData,
-    { headers: { "Content-Type": "multipart/form-data" } },
+    configSubida(onProgress),
   )
   return response.data
 }
