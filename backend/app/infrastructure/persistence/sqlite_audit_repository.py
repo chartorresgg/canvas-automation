@@ -61,7 +61,8 @@ class SQLiteAuditRepository(IAuditRepository):
 
     Args:
         db_path: Ruta al archivo SQLite.
-                 Default: backend/data/audit_log.db
+                 Default: ~/.canvas-automation/audit_log.db
+                 (fuera del repositorio — ver nota en dependencies.py)
     """
 
     def __init__(self, db_path: Path) -> None:

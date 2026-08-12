@@ -81,9 +81,20 @@ async def crear_orchestrator_context(
     return http, orchestrator
 
 # Ruta del archivo SQLite — configurable por variable de entorno
-# para facilitar migración a nube con disco persistente
+# para facilitar migración a nube con disco persistente.
+#
+# El valor por defecto vive FUERA del árbol del repositorio. La auditoría
+# de seguridad de agosto 2026 encontró que backend/data/audit_log.db se
+# había versionado con registros reales de despliegues (IDs y nombres de
+# cursos institucionales). Con la ruta por defecto en el directorio del
+# usuario, un `git add` accidental ya no puede volver a exponerlos.
+#
+# En producción se sobrescribe con AUDIT_DB_PATH (ver render.yaml).
 _DB_PATH = Path(
-    os.getenv("AUDIT_DB_PATH", str(Path(__file__).parent.parent.parent / "data" / "audit_log.db"))
+    os.getenv(
+        "AUDIT_DB_PATH",
+        str(Path.home() / ".canvas-automation" / "audit_log.db"),
+    )
 )
 
 

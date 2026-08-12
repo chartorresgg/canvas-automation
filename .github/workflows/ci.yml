@@ -11,6 +11,38 @@ env:
 
 jobs:
 
+  secret-scan:
+    name: Secretos — gitleaks
+    runs-on: ubuntu-latest
+
+    steps:
+      # fetch-depth 0 es obligatorio: sin historial completo el escaneo
+      # solo vería el último commit y no detectaría un secreto introducido
+      # y removido en commits anteriores.
+      - name: Checkout con historial completo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Instalar gitleaks
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      # --redact impide que un secreto detectado se imprima en los logs,
+      # que son públicos en este repositorio.
+      - name: Escanear historial completo
+        run: |
+          gitleaks detect \
+            --source . \
+            --config .gitleaks.toml \
+            --log-opts="--all" \
+            --redact \
+            --verbose
+
   backend-tests:
     name: Backend — pytest (Python 3.11)
     runs-on: ubuntu-latest

@@ -59,9 +59,14 @@ Desarrollado como Práctica Empresarial — Ingeniería de Sistemas, Politécnic
 ```env
 CANVAS_BASE_URL=https://poli.instructure.com/api/v1/
 CANVAS_ACCOUNT_ID=1
-AUDIT_DB_PATH=./audit_log.db
+AUDIT_DB_PATH=~/.canvas-automation/audit_log.db
 FRONTEND_URL=https://canvas-automation.vercel.app
 ```
+
+> `AUDIT_DB_PATH` es opcional. Si se omite, la base de auditoría se crea en
+> `~/.canvas-automation/audit_log.db`, **fuera del repositorio**: contiene
+> registros reales de despliegues (IDs y nombres de cursos institucionales)
+> que nunca deben versionarse.
 
 > El token de Canvas **no** se almacena en variables de entorno del servidor.
 > Cada analista ingresa su token al iniciar sesión. El sistema lo guarda

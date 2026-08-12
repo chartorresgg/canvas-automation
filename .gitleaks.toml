@@ -1,0 +1,54 @@
+# Configuración de gitleaks — Canvas LMS Automation
+#
+# Extiende el conjunto de reglas por defecto de gitleaks y añade
+# detección del formato de token de la API de Canvas LMS, que la
+# herramienta NO reconoce de fábrica. Esa carencia fue el motivo de
+# que la auditoría inicial (agosto 2026) reportara "no leaks found"
+# sin que ese resultado fuera concluyente.
+#
+# Uso local (historial completo):
+#     gitleaks detect --source . --config .gitleaks.toml --log-opts="--all" -v
+
+title = "Canvas LMS Automation"
+
+[extend]
+useDefault = true
+
+# ── Token de acceso de Canvas LMS ────────────────────────────────────
+# Formato: <user_id>~<secreto>   p. ej.  7~aB3dE9fG...
+# El user_id es numérico y corto; el secreto supera los 40 caracteres.
+[[rules]]
+id          = "canvas-lms-access-token"
+description = "Token de acceso de la API de Canvas LMS"
+regex       = '''\b[0-9]{1,6}~[A-Za-z0-9]{25,}\b'''
+tags        = ["canvas", "token", "credential"]
+
+# ── CANVAS_ACCESS_TOKEN con valor literal ────────────────────────────
+# Exige 20+ caracteres para no marcar los placeholders del README
+# ("tu_token_aqui") ni los valores cortos de los tests ("mi-token").
+[[rules]]
+id          = "canvas-access-token-assignment"
+description = "CANVAS_ACCESS_TOKEN asignado con un valor literal"
+regex       = '''(?i)CANVAS_ACCESS_TOKEN\s*[:=]\s*["']?([A-Za-z0-9~_\-]{20,})'''
+secretGroup = 1
+tags        = ["canvas", "token", "credential"]
+
+# ── Bases de datos de auditoría ──────────────────────────────────────
+# Contienen IDs y nombres de cursos institucionales reales.
+# Nunca deben versionarse (ver .gitignore).
+[[rules]]
+id          = "audit-database-committed"
+description = "Base de datos de auditoría con datos de despliegues reales"
+path        = '''backend/data/.*\.(db|sqlite|sqlite3)$'''
+regex       = '''audit_despliegues'''
+tags        = ["datos-operativos", "institucional"]
+
+[allowlist]
+description = "Rutas sin secretos propios — dependencias y artefactos"
+paths = [
+  '''frontend/package-lock\.json''',
+  '''frontend/node_modules/''',
+  '''backend/venv/''',
+  '''\.png$''',
+  '''\.webp$''',
+]
