@@ -9,12 +9,12 @@ Capa: Dominio — value_objects
 Dependencias: Pydantic v2 (validación en la frontera del sistema)
 """
 
-from __future__ import annotations
-
+# Importación de librerías estándar de Python.
+from __future__ import annotations # from __future__ import annotations: permite usar anotaciones de tipo en Python 3.0+.
 from enum import Enum
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator  # Importación de Pydantic, librería externa para validación de datos.
 
 
 # ──────────────────────────────────────────────────────────────────────────────
