@@ -6,3 +6,12 @@ docs_dir: docs
 theme:
   name: material
   language: es
+  
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+
+validation:
+  links:
+    unrecognized_links: warn
+    anchors: warn

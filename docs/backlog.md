@@ -1,1 +1,1 @@
-[Jira - Informe de Product Backlog.docx](https://github.com/user-attachments/files/28316211/Jira.-.Informe.de.Product.Backlog.docx)
+[Jira - Informe de Product Backlog.docx](assets/backlog/product-backlog.docx)

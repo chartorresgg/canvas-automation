@@ -182,7 +182,7 @@ El sistema espera que el ZIP tenga esta estructura interna:
 6. Cierre/index.html
 
 > El sistema normaliza automáticamente variaciones de nombres.
-> Ver [Troubleshooting](Troubleshooting) si hay problemas de detección.
+> Ver [Troubleshooting](solucion-de-problemas.md) si hay problemas de detección.
 
 ---
 
@@ -195,4 +195,4 @@ El sistema espera que el ZIP tenga esta estructura interna:
 | Puerto 8000 ocupado | Otra instancia corriendo | `taskkill /F /IM uvicorn.exe` (Windows) |
 | `python` no reconocido | Python no en PATH | Usar `py` en lugar de `python` en Windows |
 
-> Para problemas más detallados, consulta [Troubleshooting](Troubleshooting).
+> Para problemas más detallados, consulta [Troubleshooting](solucion-de-problemas.md).

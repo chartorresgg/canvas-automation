@@ -21,11 +21,11 @@ reduciendo el tiempo de configuración de **~240 minutos a ~25 minutos por aula*
 
 | Página | Descripción |
 |---|---|
-| [Getting-Started](https://github.com/chartorresgg/canvas-automation/wiki/Getting%E2%80%90Started) | Instalación, configuración y primer despliegue |
-| [Architecture](https://github.com/chartorresgg/canvas-automation/wiki/Architecture) | Clean Architecture, patrones de diseño y flujo del sistema |
-| [API Reference](https://github.com/chartorresgg/canvas-automation/wiki/API%E2%80%90Reference) | Los 9 endpoints REST con contratos de entrada/salida |
-| [Conventions](https://github.com/chartorresgg/canvas-automation/wiki/Conventions) | Conventional Commits, nomenclatura y estándares de código |
-| [Troubleshooting](https://github.com/chartorresgg/canvas-automation/wiki/Troubleshooting) | Errores frecuentes y sus soluciones |
+| [Primeros pasos](primeros-pasos.md) | Instalación, configuración y primer despliegue |
+| [Arquitectura](arquitectura.md) | Clean Architecture, patrones de diseño y flujo del sistema |
+| [Referencias de API](referencia-api.md) | Los 9 endpoints REST con contratos de entrada/salida |
+| [Convenciones](convenciones.md) | Conventional Commits, nomenclatura y estándares de código |
+| [Solución de problemas](solucion-de-problemas.md) | Errores frecuentes y sus soluciones |
 
 ---
 
