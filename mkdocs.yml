@@ -8,11 +8,6 @@ repo_name: chartorresgg/canvas-automation
 edit_uri: edit/main/docs/
 docs_dir: docs
 
-# Documentos que viven en docs/ pero NO se publican.
-# Una página fuera del menú igual se publica; excluirla es la única garantía.
-exclude_docs: |
-  NECESIDADES-V2.md
-
 # ── Tema ────────────────────────────────────────────────────────
 theme:
   name: material
