@@ -34,6 +34,16 @@ theme:
 plugins:
   - search:
       lang: es                # stemming en español: "despliegue" encuentra "desplegar"
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [backend]            # dónde está el paquete "app"
+          options:
+            docstring_style: google   # tus docstrings usan Args/Returns/Raises
+            show_source: false        # no incrustar el código fuente en la página
+            show_root_heading: true   # título con el nombre del módulo
+            members_order: source     # mismo orden que en el archivo .py
+            heading_level: 2
 
 # ── Extensiones de Markdown ─────────────────────────────────────
 markdown_extensions:
@@ -53,6 +63,9 @@ nav:
       - Visión general: arquitectura.md
       - Diagramas UML: diagramas-uml.md
   - Referencia de API: referencia-api.md
+  - Referencia del código:
+      - Aplicación: referencia-codigo/aplicacion.md
+  - Convenciones: convenciones.md
   - Convenciones: convenciones.md
   - Solución de problemas: solucion-de-problemas.md
   - Backlog: backlog.md
