@@ -55,3 +55,4 @@ reduciendo el tiempo de configuración de **~240 minutos a ~25 minutos por aula*
 - [Repositorio](https://github.com/chartorresgg/canvas-aulas-master)
 - [API Swagger](http://localhost:8000/docs) ← disponible con el servidor corriendo
 - [Backlog completo de HU](https://github.com/chartorresgg/canvas-aulas-master/blob/main/historias_de_usuario.md)
+Ver la [guía de despliegue](guia-que-no-existe.md).
