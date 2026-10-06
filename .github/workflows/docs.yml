@@ -1,9 +1,10 @@
 name: Docs — MkDocs
 
 "on":
+  # Sin filtro de rutas: "Docs — build --strict" es un check requerido
+  # en main y debe reportarse en todo PR, o el PR quedaría bloqueado.
   pull_request:
     branches: [main]
-    paths:
   push:
     branches: [main]
     paths:
