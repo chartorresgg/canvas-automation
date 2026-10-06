@@ -2,14 +2,13 @@
 Orquestador de despliegue de aulas virtuales Canvas LMS.
 
 Implementa el patrón Facade: expone una única operación pública
-(deploy) que coordina internamente todos los subsistemas sin que
+(`deploy`) que coordina internamente todos los subsistemas sin que
 el cliente (router FastAPI) conozca su existencia.
 
-Capa: Aplicación
-Patrón: Facade (GoF — Estructural)
-Colaboradores:
-    CourseRepository, FileRepository, PageRepository,
-    ZipProcessor, InteractiveContentDetector, PageComposerFactory
+- **Capa:** Aplicación
+- **Patrón:** Facade (GoF — Estructural)
+- **Colaboradores:** `CourseRepository`, `FileRepository`, `PageRepository`,
+  `ZipProcessor`, `InteractiveContentDetector`, `PageComposerFactory`
 """
 
 from __future__ import annotations
@@ -52,18 +51,21 @@ class DeploymentOrchestrator:
     en cada etapa para que FastAPI los transmita como SSE al frontend.
 
     No realiza ninguna operación directamente. Delega en:
-        - CourseRepository: crear/verificar curso en Canvas
-        - ZipProcessor:     extraer y normalizar el ZIP
-        - FileRepository:   subir archivos a Canvas
-        - InteractiveContentDetector: detectar contenido SCORM
-        - PageRepository + Composers: actualizar páginas HTML
-        - PageRepository: vincular PDFs a actividades
 
-    Uso:
+    - `CourseRepository`: crear/verificar curso en Canvas
+    - `ZipProcessor`: extraer y normalizar el ZIP
+    - `FileRepository`: subir archivos a Canvas
+    - `InteractiveContentDetector`: detectar contenido SCORM
+    - `PageRepository` + composers: actualizar páginas HTML
+    - `PageRepository`: vincular PDFs a actividades
+
+    Examples:
+        ```python
         orchestrator = DeploymentOrchestrator(...)
         async for event in orchestrator.deploy(config):
             # event es un ProgressEvent
             await sse_send(event.to_sse_data())
+        ```
     """
 
     def __init__(
@@ -104,16 +106,19 @@ class DeploymentOrchestrator:
         Es un async generator: cada `yield` emite un ProgressEvent
         que FastAPI convierte en un evento SSE hacia el frontend React.
 
-        Pasos del proceso:
-            0. Inicio          → PENDING  (0%)
-            1. Curso Canvas    → RUNNING  (20%)
-            2. ZIP procesado   → RUNNING  (35%)
-            3. Archivos subidos→ RUNNING  (35-65%, por archivo)
-            4. Páginas HTML    → RUNNING  (85%)
-            5. Completado      → COMPLETED(100%)
+        El proceso avanza por estos pasos:
 
-        En caso de error en cualquier paso:
-            → FAILED con el paso donde ocurrió y descripción del error.
+        | Paso | Hito             | Estado      | Progreso              |
+        |------|------------------|-------------|-----------------------|
+        | 0    | Inicio           | `PENDING`   | 0 %                   |
+        | 1    | Curso Canvas     | `RUNNING`   | 20 %                  |
+        | 2    | ZIP procesado    | `RUNNING`   | 35 %                  |
+        | 3    | Archivos subidos | `RUNNING`   | 35–65 % (por archivo) |
+        | 4    | Páginas HTML     | `RUNNING`   | 85 %                  |
+        | 5    | Completado       | `COMPLETED` | 100 %                 |
+
+        Si ocurre un error en cualquier paso, emite `FAILED` con el paso
+        donde ocurrió y la descripción del error.
 
         Args:
             config: DeploymentConfig validado con Pydantic v2.

@@ -1,0 +1,91 @@
+name: Docs — MkDocs
+
+"on":
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      # mkdocstrings genera la referencia desde los docstrings del backend:
+      # un cambio en el código también puede romper la documentación.
+      - "backend/app/**"
+      - ".github/workflows/docs.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      - "backend/app/**"
+      - ".github/workflows/docs.yml"
+  # Permite publicar manualmente desde la pestaña Actions.
+  workflow_dispatch:
+
+# Mínimo privilegio: por defecto solo lectura. El job deploy pide
+# los permisos de escritura que necesita, y nadie más los tiene.
+permissions:
+  contents: read
+
+# Evita dos despliegues simultáneos a Pages. No cancela el que está
+# en curso: un despliegue a medias podría dejar el sitio inconsistente.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+
+  build:
+    name: Docs — build --strict
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements-docs.txt
+
+      # Solo las dependencias de documentación: mkdocstrings analiza el
+      # backend de forma estática, sin importarlo ni instalar sus paquetes.
+      - name: Instalar dependencias de documentación
+        run: pip install -r requirements-docs.txt
+
+      # --strict convierte cada advertencia en error: enlaces rotos,
+      # páginas fuera del nav o docstrings inválidos hacen fallar el job.
+      - name: Construir el sitio
+        run: mkdocs build --strict
+
+      # El artefacto solo se empaqueta cuando se va a publicar.
+      - name: Empaquetar el sitio para GitHub Pages
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    name: Docs — publicar en GitHub Pages
+    needs: build
+    # Solo desde main, nunca desde un PR: un PR es una propuesta, no producción.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write      # publicar en Pages
+      id-token: write   # autenticarse ante Pages con un token OIDC de corta duración
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Publicar
+        id: deployment
+        uses: actions/deploy-pages@v5

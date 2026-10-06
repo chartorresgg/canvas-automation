@@ -1,0 +1,79 @@
+# ── Identidad del sitio ─────────────────────────────────────────
+site_name: Canvas LMS Automation
+site_description: Documentación técnica del sistema de automatización de aulas virtuales en Canvas LMS
+site_url: https://chartorresgg.github.io/canvas-automation/
+repo_url: https://github.com/chartorresgg/canvas-automation
+repo_name: chartorresgg/canvas-automation
+# Botón "Editar esta página": lleva al .md en GitHub para proponer cambios por PR
+edit_uri: edit/main/docs/
+docs_dir: docs
+
+# ── Tema ────────────────────────────────────────────────────────
+theme:
+  name: material
+  language: es
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Cambiar a modo oscuro
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Cambiar a modo claro
+  features:
+    - navigation.sections     # agrupa el menú por secciones
+    - navigation.top          # botón "volver arriba"
+    - search.suggest          # autocompletado en la búsqueda
+    - search.highlight        # resalta el término buscado en la página
+    - content.code.copy       # botón copiar en bloques de código
+    - content.action.edit     # botón "Editar esta página"
+
+plugins:
+  - search:
+      lang: es                # stemming en español: "despliegue" encuentra "desplegar"
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [backend]            # dónde está el paquete "app"
+          options:
+            docstring_style: google   # tus docstrings usan Args/Returns/Raises
+            show_source: false        # no incrustar el código fuente en la página
+            show_root_heading: true   # título con el nombre del módulo
+            members_order: source     # mismo orden que en el archivo .py
+            heading_level: 2
+
+# ── Extensiones de Markdown ─────────────────────────────────────
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences     # bloques de código dentro de plegables y listas
+  - pymdownx.highlight       # resaltado de sintaxis
+  - tables
+  - toc:
+      permalink: true         # ancla "¶" en cada título para compartir enlaces directos
+
+# ── Navegación ──────────────────────────────────────────────────
+nav:
+  - Inicio: index.md
+  - Primeros pasos: primeros-pasos.md
+  - Arquitectura:
+      - Visión general: arquitectura.md
+      - Diagramas UML: diagramas-uml.md
+  - Referencia de API: referencia-api.md
+  - Referencia del código:
+      - Aplicación: referencia-codigo/aplicacion.md
+  - Convenciones: convenciones.md
+  - Convenciones: convenciones.md
+  - Solución de problemas: solucion-de-problemas.md
+  - Backlog: backlog.md
+
+# ── Validación (con --strict, cada warn rompe el build) ─────────
+validation:
+  nav:
+    omitted_files: warn       # obliga a decidir: cada página va al menú o se excluye
+  links:
+    unrecognized_links: warn
+    anchors: warn
