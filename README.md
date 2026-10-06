@@ -249,9 +249,11 @@ pytest tests/unit/ --cov=app --cov-report=term-missing
 
 ## Documentación
 
-- 🚀 [Getting Started](https://github.com/chartorresgg/canvas-automation/wiki/01-%E2%80%90-Getting%E2%80%90Started)
-- 📖 [Arquitectura](https://github.com/chartorresgg/canvas-automation/wiki/02-%E2%80%90-Architecture)
-- 📊 [Diagramas UML](https://github.com/chartorresgg/canvas-automation/wiki/03-%E2%80%90-UML-Diagramas)
-- 📡 [API Reference](https://github.com/chartorresgg/canvas-automation/wiki/04-%E2%80%90-API%E2%80%90Reference)
-- 🔧 [Conventions](https://github.com/chartorresgg/canvas-automation/wiki/06-%E2%80%90-Conventions)
-- 🐛 [Troubleshooting](https://github.com/chartorresgg/canvas-automation/wiki/07-%E2%80%90-Troubleshooting)
+📚 **Sitio de documentación:** https://chartorresgg.github.io/canvas-automation/
+
+- 🚀 [Primeros pasos](https://chartorresgg.github.io/canvas-automation/primeros-pasos/)
+- 📖 [Arquitectura](https://chartorresgg.github.io/canvas-automation/arquitectura/)
+- 📊 [Diagramas UML](https://chartorresgg.github.io/canvas-automation/diagramas-uml/)
+- 📡 [Referencia de API](https://chartorresgg.github.io/canvas-automation/referencia-api/)
+- 🔧 [Convenciones](https://chartorresgg.github.io/canvas-automation/convenciones/)
+- 🐛 [Solución de problemas](https://chartorresgg.github.io/canvas-automation/solucion-de-problemas/)
