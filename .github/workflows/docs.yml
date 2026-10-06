@@ -4,13 +4,6 @@ name: Docs — MkDocs
   pull_request:
     branches: [main]
     paths:
-      - "docs/**"
-      - "mkdocs.yml"
-      - "requirements-docs.txt"
-      # mkdocstrings genera la referencia desde los docstrings del backend:
-      # un cambio en el código también puede romper la documentación.
-      - "backend/app/**"
-      - ".github/workflows/docs.yml"
   push:
     branches: [main]
     paths:
