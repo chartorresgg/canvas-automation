@@ -24,27 +24,31 @@ Desarrollado como Práctica Empresarial — Ingeniería de Sistemas, Politécnic
 | Capa | Tecnología | Versión |
 |---|---|---|
 | Backend — Lenguaje | Python | 3.11 |
-| Backend — Framework | FastAPI | Latest |
-| Backend — Servidor | Uvicorn (ASGI) | Latest |
-| Backend — Validación | Pydantic | v2 |
-| Backend — HTTP client | httpx | Latest |
-| Backend — Persistencia | SQLite + aiosqlite | Latest |
-| Backend — Excel | openpyxl | Latest |
-| Frontend — Librería | React | 18 |
-| Frontend — Lenguaje | TypeScript | 5 |
-| Frontend — Build | Vite | 5 |
-| Frontend — Estilos | Tailwind CSS | 3 |
-| Frontend — HTTP | Axios | Latest |
+| Backend — Framework | FastAPI | 0.136.1 |
+| Backend — Servidor | Uvicorn (ASGI) | 0.34.0 |
+| Backend — Validación | Pydantic | 2.13.3 |
+| Backend — HTTP client | httpx | 0.28.1 |
+| Backend — Persistencia | SQLite + aiosqlite | 0.22.1 |
+| Backend — Excel | openpyxl | 3.1.5 |
+| Frontend — Librería | React | 19.2.5 |
+| Frontend — Lenguaje | TypeScript | 6.0.3 |
+| Frontend — Build | Vite | 8.0.10 |
+| Frontend — Estilos | Tailwind CSS | 3.4.19 |
+| Frontend — Componentes | shadcn/ui sobre Radix UI | — |
+| Frontend — HTTP | Axios | 1.16.0 |
 | Integración | Canvas LMS REST API | v1 |
-| CI/CD | GitHub Actions | — |
+| CI/CD | GitHub Actions | gitleaks · pytest · tsc |
 | Deploy backend | Render Web Service | Free Tier |
 | Deploy frontend | Vercel CDN | Hobby |
+
+> Versiones resueltas desde `backend/requirements.txt` y `frontend/package-lock.json`
+> el 8 de septiembre de 2026. Al actualizar dependencias, actualizar también esta tabla.
 
 ---
 
 ## Requisitos previos (desarrollo local)
 
-- Python 3.11+
+- Python 3.11 (versión con la que corre el CI y el despliegue)
 - Node.js 20+
 - Token de acceso a la API de Canvas LMS (generado desde el perfil del usuario en poli.instructure.com)
 
@@ -119,19 +123,19 @@ canvas-automation/
 │   │   │   │                          # GuionExcelReader, InteractiveContentDetector
 │   │   │   └── value_objects/         # DeploymentConfig, ProgressEvent, AuditEntry
 │   │   ├── application/               # Capa 2 — Casos de uso
-│   │   │   └── deployment_orchestrator.py
+│   │   │   └── orchestrator.py        # DeploymentOrchestrator (Facade)
 │   │   ├── infrastructure/            # Capa 3 — Adaptadores técnicos
-│   │   │   ├── canvas/               # CanvasHttpClient + 3 Repositories
+│   │   │   ├── canvas/               # http_client.py + 3 Repositories
 │   │   │   ├── composers/            # 5 Composers (Strategy) + Factory
 │   │   │   └── persistence/          # SQLiteAuditRepository
-│   │   └── presentation/             # Capa 4 — Controladores HTTP
-│   │       ├── routers/              # deploy, auth, audit, benchmark, health
-│   │       ├── session_manager.py
-│   │       ├── task_manager.py
-│   │       ├── schemas.py
-│   │       └── dependencies.py
-│   ├── tests/unit/                    # 434 tests automatizados
-│   ├── main.py
+│   │   ├── presentation/             # Capa 4 — Controladores HTTP
+│   │   │   ├── routers/              # deploy, auth, audit, benchmark, health
+│   │   │   ├── session_manager.py
+│   │   │   ├── task_manager.py
+│   │   │   ├── schemas.py
+│   │   │   └── dependencies.py
+│   │   └── main.py                    # Fábrica de la app FastAPI
+│   ├── tests/unit/                    # 434 pruebas automatizadas
 │   └── requirements.txt
 ├── frontend/
 │   └── src/
@@ -141,7 +145,9 @@ canvas-automation/
 │       │   └── benchmark/            # Medición de rendimiento
 │       ├── components/ui/
 │       └── services/api.ts           # Axios + interceptor X-Session-ID
-├── .github/workflows/ci.yml          # GitHub Actions: pytest + TypeScript
+├── docs/                             # Sitio de documentación (MkDocs)
+├── .github/workflows/ci.yml          # gitleaks + pytest + TypeScript
+├── .gitleaks.toml                    # Reglas de escaneo de secretos
 ├── render.yaml                        # Config despliegue Render
 └── README.md
 ```
@@ -196,26 +202,46 @@ Archivos/
 
 ```bash
 cd backend
-pytest tests/unit/ -v --tb=short
+python -m pytest tests/unit/ -v --tb=short
+```
 
-# Con reporte de cobertura
-pytest tests/unit/ --cov=app --cov-report=term-missing
+Para el reporte de cobertura hace falta instalar `pytest-cov`, que no viene en
+`requirements.txt`:
+
+```bash
+pip install pytest-cov
+python -m pytest tests/unit/ --cov=app --cov-report=term-missing
 ```
 
 **Estado actual:**
-- ✅ 434 tests passing · 3 skipped
-- 📊 71% cobertura · 2.352 líneas ejecutables
-- ⏱ 16.35s ejecución · 31s pipeline CI/CD completo
+
+| Indicador | Valor | Verificado |
+|---|---|---|
+| Pruebas unitarias | 434 pasando · 3 omitidas | 8-sep-2026 |
+| Tiempo de ejecución | 16,2 s | 8-sep-2026 |
+| Cobertura | 71 % sobre 2.352 líneas ejecutables | última medición conocida |
+| Pruebas de integración | Ninguna — `tests/integration/` está vacío | 8-sep-2026 |
+
+> La cobertura no la mide el pipeline de CI. Al no estar `pytest-cov` en las
+> dependencias, la cifra proviene de una medición manual anterior y puede haber
+> variado.
+
+> Las 434 pruebas son unitarias y simulan Canvas con mocks. Si Canvas cambiara
+> el formato de una respuesta, la suite seguiría en verde. Cerrar esa brecha con
+> `respx` es un requisito de la Fase 2 (RC-03).
 
 ---
 
 ## Reglas de arquitectura
 
 - Las dependencias fluyen de exterior → Dominio. El Dominio **nunca** importa FastAPI, httpx ni SQLite.
-- Todo acceso a Canvas API va exclusivamente por `infrastructure/canvas/canvas_client.py`.
-- Todo I/O usa `async/await` — sin operaciones síncronas bloqueantes.
+- Todo acceso a Canvas API va exclusivamente por `infrastructure/canvas/http_client.py`.
+- Todo I/O **debe** usar `async/await`, sin operaciones síncronas bloqueantes.
+  El trabajo bloqueante inevitable se envuelve en `anyio.to_thread.run_sync`.
 - El token de Canvas **nunca** se persiste en disco ni aparece en logs.
 - No se hardcodean rutas absolutas del sistema de archivos.
+- Todo endpoint nuevo nace exigiendo sesión válida. Las rutas públicas se
+  declaran de forma explícita y se justifican; no se heredan por omisión.
 
 ---
 
@@ -229,6 +255,41 @@ pytest tests/unit/ --cov=app --cov-report=term-missing
 | Sprint 4 | Resiliencia y Reportes | 18 | 13 ✅ |
 | Sprint 5 | Despliegue en Nube y CI/CD | 8 | 13 ✅ |
 | **Total** | | **89** | **79 SP únicos** |
+
+La Fase 1 está cerrada y en operación. La **Fase 2** —en preparación— no amplía
+funcionalidad: prepara el aplicativo para ser operado y auditado por la
+institución. Sus tres frentes son el endurecimiento de seguridad de la API, la
+migración de Vercel y Render a infraestructura institucional en AWS, y la
+autenticación mediante SSO sobre Active Directory en reemplazo del token
+personal de Canvas.
+
+---
+
+## Estado de seguridad
+
+Controles vigentes:
+
+- **Escaneo de secretos en cada push y pull request** — gitleaks sobre el
+  historial completo, con una regla propia para el formato de token de Canvas
+  (`.gitleaks.toml`) que la herramienta no reconoce de fábrica.
+- **El token de Canvas no se persiste.** Vive en la memoria del proceso durante
+  la sesión y nunca toca el disco ni los logs.
+- **Identificador de sesión no enumerable** — 32 bytes de `secrets.token_urlsafe`.
+- **Protección contra Zip Slip** al extraer el contenido cargado.
+- **Orígenes CORS restringidos** por lista explícita, sin comodín.
+- **Datos de auditoría fuera del árbol del repositorio** por defecto.
+
+La Fase 2 completa el endurecimiento de la API —autorización por rol, control de
+tasa, validación de cargas en el servidor y saneamiento de entradas—, el manejo
+de sesiones, la persistencia gestionada del registro de auditoría con atribución
+por usuario, y la autenticación SSO sobre Active Directory.
+
+> **Este aplicativo aún no debe considerarse apto para operación institucional
+> sostenida.** Los requisitos que habilitan esa condición están levantados en el
+> documento de evaluación técnica de la Fase 2.
+>
+> ¿Encontraste un problema de seguridad? Repórtalo de forma privada al autor o
+> al área de Ambientes de Aprendizaje, no como issue público.
 
 ---
 
@@ -257,3 +318,8 @@ pytest tests/unit/ --cov=app --cov-report=term-missing
 - 📡 [Referencia de API](https://chartorresgg.github.io/canvas-automation/referencia-api/)
 - 🔧 [Convenciones](https://chartorresgg.github.io/canvas-automation/convenciones/)
 - 🐛 [Solución de problemas](https://chartorresgg.github.io/canvas-automation/solucion-de-problemas/)
+
+En el repositorio:
+
+- 🤖 [`CLAUDE.md`](CLAUDE.md) y [`.cursorrules`](.cursorrules) — contexto de
+  arquitectura y reglas que deben seguir los asistentes de código.
