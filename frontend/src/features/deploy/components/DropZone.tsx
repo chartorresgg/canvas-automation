@@ -240,7 +240,7 @@ export function DropZone({ onUploadSuccess }: DropZoneProps) {
           )}
 
           {result.warnings.length > 0 && (
-            <div className="mt-2 rounded bg-yellow-50 border border-yellow-200 p-2">
+            <div className="mt-2 rounded-sm bg-yellow-50 border border-yellow-200 p-2">
               <p className="text-xs font-medium text-yellow-700 mb-1">
                 Advertencias ({result.warnings.length})
               </p>

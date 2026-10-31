@@ -50,7 +50,7 @@ export function LoginPage() {
 
       {/* Capa 2 — Degradado diagonal con los tonos de marca (slate + blue) */}
       <div
-        className="absolute inset-0 z-0 bg-gradient-to-br from-slate-950/5 via-slate-900/0 to-blue-950/5"
+        className="absolute inset-0 z-0 bg-linear-to-br from-slate-950/5 via-slate-900/0 to-blue-950/5"
         aria-hidden="true"
       />
 
@@ -108,7 +108,7 @@ export function LoginPage() {
 
         {/* Error */}
         {error && (
-          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-sm px-3 py-2">
             {error}
           </p>
         )}

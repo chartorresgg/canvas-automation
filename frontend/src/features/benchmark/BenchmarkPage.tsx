@@ -75,7 +75,7 @@ export function BenchmarkPage() {
       <main className="max-w-3xl mx-auto px-6 py-8 space-y-6">
 
         {/* ── Panel de entrada ──────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
           <h2 className="text-sm font-semibold text-slate-700">
             Archivos de prueba
           </h2>
@@ -142,7 +142,7 @@ export function BenchmarkPage() {
           </div>
 
           {error && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-sm px-3 py-2">
               {error}
             </p>
           )}
@@ -202,7 +202,7 @@ export function BenchmarkPage() {
             </div>
 
             {/* Tiempos por etapa */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
               <div className="px-5 py-3 border-b border-slate-100">
                 <h3 className="text-sm font-semibold text-slate-700">
                   Tiempos por etapa
@@ -265,7 +265,7 @@ export function BenchmarkPage() {
             </div>
 
             {/* Comparación con proceso manual */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
               <h3 className="text-sm font-semibold text-slate-700">
                 Impacto vs. proceso manual
               </h3>

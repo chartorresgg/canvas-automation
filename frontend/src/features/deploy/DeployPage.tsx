@@ -185,7 +185,7 @@ export function DeployPage() {
             </div>
 
             {/* Paso activo */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
               {state.step === 1 && (
                 <>
                   <h2 className="text-base font-semibold text-slate-800 mb-1">
@@ -234,7 +234,7 @@ export function DeployPage() {
 
             {/* Resumen y botón de despliegue */}
             {isReadyToDeploy && (
-              <div className="mt-6 bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+              <div className="mt-6 bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">
                   Resumen del despliegue
                 </h3>
@@ -287,7 +287,7 @@ export function DeployPage() {
 
         {/* ── Modo deploy en progreso ───────────────────────────────────── */}
         {mode === "deploying" && taskId && (
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-base font-semibold text-slate-800">
                 Desplegando aula virtual
