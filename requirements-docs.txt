@@ -1,3 +1,6 @@
 mkdocs-material==9.7.7
 mkdocstrings==1.0.6
 mkdocstrings-python==2.0.9
+# pymdown-extensions 12 cambió la firma de Highlight y rompe mkdocstrings 1.0.6
+# (TypeError: Highlight.__init__() missing 1 required positional argument: 'md').
+pymdown-extensions<12
