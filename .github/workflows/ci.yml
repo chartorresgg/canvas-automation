@@ -67,6 +67,8 @@ jobs:
         run: python -m pytest tests/unit/ -v --tb=short
 
   frontend-check:
+    # El nombre del job es un check obligatorio del ruleset "Proteger main":
+    # renombrarlo exige actualizar el ruleset a la vez, o los PR quedan bloqueados.
     name: Frontend — TypeScript (Node 18)
     runs-on: ubuntu-latest
 
@@ -74,10 +76,10 @@ jobs:
       - name: Checkout del código
         uses: actions/checkout@v4
 
-      - name: Configurar Node.js 18
+      - name: Configurar Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "22"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
